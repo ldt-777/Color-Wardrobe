@@ -110,7 +110,7 @@ export default function WardrobeScreen() {
         )}
       </ScrollView>
 
-      <View style={[styles.fabWrapper, { bottom: insets.bottom + spacing.lg }]} pointerEvents="box-none">
+      <View style={[styles.fabWrapper, { bottom: insets.bottom + spacing.lg }]}>
         <PressableScale
           accessibilityRole="button"
           accessibilityLabel="Aggiungi un capo"
@@ -199,6 +199,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
+    // La fascia attraversa tutta la larghezza dello schermo ma deve lasciar
+    // passare lo scroll: solo il pulsante al centro intercetta il tocco.
+    pointerEvents: 'box-none',
   },
   fab: {
     width: 64,
