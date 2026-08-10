@@ -1,0 +1,19 @@
+{
+  // I test del motore colore girano su Node, non su Metro: qui compiliamo il
+  // solo `src/color` in CommonJS, cosi' `node --test` puo' eseguirlo senza
+  // bundler ne dispositivo.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "CommonJS",
+    "moduleResolution": "node10",
+    "ignoreDeprecations": "6.0",
+    "types": ["node"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": ".test-build",
+    "rootDir": "."
+  },
+  "include": ["src/color/**/*.ts", "src/types/**/*.d.ts"]
+}
