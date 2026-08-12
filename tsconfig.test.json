@@ -7,7 +7,6 @@
     "lib": ["ES2022"],
     "module": "CommonJS",
     "moduleResolution": "node10",
-    "ignoreDeprecations": "6.0",
     "types": ["node"],
     "strict": true,
     "esModuleInterop": true,
@@ -15,5 +14,13 @@
     "outDir": ".test-build",
     "rootDir": "."
   },
-  "include": ["src/color/**/*.ts", "src/types/**/*.d.ts"]
+  "include": [
+    "src/color/**/*.ts",
+    // Di `src/i18n` prendiamo solo le parti pure: `index.ts` espone l'hook e
+    // quindi importa React e il modulo nativo della localizzazione.
+    "src/i18n/format.ts",
+    "src/i18n/translations.ts",
+    "src/i18n/i18n.test.ts",
+    "src/types/**/*.d.ts"
+  ]
 }

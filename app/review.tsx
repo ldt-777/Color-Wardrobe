@@ -15,42 +15,35 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { rankSwatches } from '../src/color/roles';
 import { readableInk } from '../src/color/space';
+import { useTranslation, type Dictionary } from '../src/i18n';
 import { getDraft, setDraft } from '../src/store/draft';
 import { useWardrobe } from '../src/store/wardrobe';
 import { Field } from '../src/ui/components/Field';
 import { PaletteBar } from '../src/ui/components/PaletteBar';
 import { PressableScale } from '../src/ui/components/PressableScale';
 import { radius, spacing, type as typography, useTheme } from '../src/ui/theme';
-import { CATEGORIES, type Category } from '../src/types';
-
-const ROLE_LABELS: Record<string, string> = {
-  base: 'colore base',
-  secondario: 'secondario',
-  accento: 'accento',
-  neutro: 'neutro',
-};
+import { CATEGORIES, DEFAULT_CATEGORY, type Category } from '../src/types';
 
 export default function ReviewScreen() {
   const theme = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { addGarment } = useWardrobe();
+  const { t } = useTranslation();
 
   const draft = useMemo(getDraft, []);
   const ranked = useMemo(() => rankSwatches(draft?.swatches ?? []), [draft]);
 
   const [name, setName] = useState('');
-  const [category, setCategory] = useState<Category>('Altro');
+  const [category, setCategory] = useState<Category>(DEFAULT_CATEGORY);
   const [saving, setSaving] = useState(false);
 
   if (!draft) {
     return (
       <View style={[styles.screen, styles.centered, { backgroundColor: theme.background }]}>
-        <Text style={[typography.body, { color: theme.textMuted }]}>
-          Nessuna foto da salvare.
-        </Text>
+        <Text style={[typography.body, { color: theme.textMuted }]}>{t.review.noDraft}</Text>
         <PressableScale onPress={() => router.replace('/')} haptic={false}>
-          <Text style={[typography.label, { color: theme.text }]}>Torna al guardaroba</Text>
+          <Text style={[typography.label, { color: theme.text }]}>{t.common.backToWardrobe}</Text>
         </PressableScale>
       </View>
     );
@@ -62,7 +55,7 @@ export default function ReviewScreen() {
     try {
       await addGarment({
         id: draft.id,
-        name: name.trim() || suggestName(category),
+        name: name.trim() || suggestName(t, category),
         category,
         imageUri: draft.imageUri,
         thumbUri: draft.thumbUri,
@@ -91,7 +84,7 @@ export default function ReviewScreen() {
         <View style={styles.topBar}>
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel="Annulla"
+            accessibilityLabel={t.common.cancel}
             onPress={() => {
               setDraft(null);
               router.replace('/');
@@ -99,7 +92,7 @@ export default function ReviewScreen() {
             style={[styles.iconButton, { borderColor: theme.line }]}>
             <Ionicons name="close" size={18} color={theme.textMuted} />
           </PressableScale>
-          <Text style={[typography.label, { color: theme.textMuted }]}>Nuovo capo</Text>
+          <Text style={[typography.label, { color: theme.textMuted }]}>{t.review.title}</Text>
           <View style={styles.iconButton} />
         </View>
 
@@ -109,7 +102,7 @@ export default function ReviewScreen() {
         </View>
 
         <View style={styles.section}>
-          <Field label="I colori che ho letto">
+          <Field label={t.review.colorsFound}>
             <View style={styles.swatchList}>
               {ranked.map((swatch) => (
                 <View
@@ -123,7 +116,7 @@ export default function ReviewScreen() {
                       typography.caption,
                       { color: readableInk(swatch.hex), opacity: 0.75 },
                     ]}>
-                    {ROLE_LABELS[swatch.role].toUpperCase()} · {Math.round(swatch.share * 100)}%
+                    {t.roles[swatch.role].toUpperCase()} · {Math.round(swatch.share * 100)}%
                   </Text>
                 </View>
               ))}
@@ -132,11 +125,11 @@ export default function ReviewScreen() {
         </View>
 
         <View style={styles.section}>
-          <Field label="Nome">
+          <Field label={t.review.name}>
             <TextInput
               value={name}
               onChangeText={setName}
-              placeholder={suggestName(category)}
+              placeholder={suggestName(t, category)}
               placeholderTextColor={theme.textMuted}
               style={[
                 typography.body,
@@ -148,7 +141,7 @@ export default function ReviewScreen() {
         </View>
 
         <View style={styles.section}>
-          <Field label="Categoria">
+          <Field label={t.review.category}>
             <View style={styles.categories}>
               {CATEGORIES.map((option) => {
                 const active = option === category;
@@ -170,7 +163,7 @@ export default function ReviewScreen() {
                         typography.label,
                         { color: active ? theme.background : theme.textMuted },
                       ]}>
-                      {option}
+                      {t.categories[option]}
                     </Text>
                   </PressableScale>
                 );
@@ -186,7 +179,7 @@ export default function ReviewScreen() {
             disabled={saving}
             style={[styles.saveButton, { backgroundColor: theme.text, opacity: saving ? 0.6 : 1 }]}>
             <Text style={[typography.label, { color: theme.background }]}>
-              {saving ? 'Salvo…' : 'Salva nel guardaroba'}
+              {saving ? t.review.saving : t.review.save}
             </Text>
           </PressableScale>
         </View>
@@ -195,7 +188,9 @@ export default function ReviewScreen() {
   );
 }
 
-const suggestName = (category: Category) => (category === 'Altro' ? 'Capo senza nome' : category);
+/** Il nome proposto e' la categoria stessa, che e' gia' un'etichetta sensata. */
+const suggestName = (t: Dictionary, category: Category) =>
+  category === DEFAULT_CATEGORY ? t.review.unnamed : t.categories[category];
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },

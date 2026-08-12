@@ -2,6 +2,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { Mood } from '../../color/moods';
+import { useTranslation } from '../../i18n';
 import { radius, spacing, type as typography, useTheme } from '../theme';
 import { PressableScale } from './PressableScale';
 
@@ -14,6 +15,7 @@ type Props = {
 
 export function MoodPicker({ moods, activeId, pinnedId, onSelect }: Props) {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   return (
     <View>
@@ -23,12 +25,13 @@ export function MoodPicker({ moods, activeId, pinnedId, onSelect }: Props) {
         contentContainerStyle={styles.row}>
         {moods.map((mood) => {
           const active = mood.id === activeId;
+          const { name, tagline } = t.moods[mood.id];
           return (
             <PressableScale
               key={mood.id}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
-              accessibilityLabel={`Mood ${mood.name}. ${mood.tagline}`}
+              accessibilityLabel={`${name}. ${tagline}`}
               onPress={() => onSelect(mood.id)}
               style={[
                 styles.chip,
@@ -42,7 +45,7 @@ export function MoodPicker({ moods, activeId, pinnedId, onSelect }: Props) {
                   typography.label,
                   { color: active ? theme.background : theme.textMuted },
                 ]}>
-                {mood.name}
+                {name}
                 {mood.id === pinnedId ? ' ·' : ''}
               </Text>
             </PressableScale>

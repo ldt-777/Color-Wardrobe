@@ -1,3 +1,4 @@
+import { LANGUAGES, type Language } from '../i18n/translations';
 import { getDatabase } from './index';
 
 export type AppSettings = {
@@ -5,12 +6,19 @@ export type AppSettings = {
   pinnedMoodId: string | null;
   /** Vista "solo colore": le foto lasciano il posto ai colori pieni. */
   colorOnly: boolean;
+  /** Lingua scelta a mano; `null` significa "come il telefono". */
+  language: Language | null;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
   pinnedMoodId: null,
   colorOnly: false,
+  language: null,
 };
+
+/** Una lingua rimossa in futuro non deve bloccare l'avvio: torna a `null`. */
+const readLanguage = (value: string | undefined): Language | null =>
+  value && (LANGUAGES as readonly string[]).includes(value) ? (value as Language) : null;
 
 export async function loadSettings(): Promise<AppSettings> {
   const db = await getDatabase();
@@ -20,6 +28,7 @@ export async function loadSettings(): Promise<AppSettings> {
   return {
     pinnedMoodId: stored.get('pinnedMoodId') || null,
     colorOnly: stored.get('colorOnly') === 'true',
+    language: readLanguage(stored.get('language')),
   };
 }
 

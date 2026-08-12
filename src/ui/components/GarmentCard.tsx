@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import type { ArrangedGarment } from '../../store/wardrobe';
 import { readableInk } from '../../color/space';
+import { useTranslation } from '../../i18n';
 import { radius, spacing, type as typography } from '../theme';
 import { PressableScale } from './PressableScale';
 
@@ -19,6 +20,8 @@ type Props = {
  * in griglia, le schede formano un mosaico che si legge come una palette.
  */
 export function GarmentCard({ garment, colorOnly, onPress }: Props) {
+  const { t } = useTranslation();
+  const category = t.categories[garment.category];
   const background = garment.signature.hex;
   const ink = readableInk(background);
 
@@ -29,7 +32,7 @@ export function GarmentCard({ garment, colorOnly, onPress }: Props) {
   return (
     <PressableScale
       accessibilityRole="button"
-      accessibilityLabel={`${garment.name}, ${garment.category}`}
+      accessibilityLabel={`${garment.name}, ${category}`}
       onPress={onPress}
       style={[styles.card, { backgroundColor: background, opacity }]}>
       {!colorOnly && (
@@ -47,7 +50,7 @@ export function GarmentCard({ garment, colorOnly, onPress }: Props) {
           {garment.name}
         </Text>
         <Text numberOfLines={1} style={[typography.caption, { color: ink, opacity: 0.7 }]}>
-          {garment.category.toUpperCase()}
+          {category.toUpperCase()}
         </Text>
       </View>
     </PressableScale>
@@ -63,7 +66,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   image: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     margin: spacing.sm,
     marginBottom: 46,
     borderRadius: radius.md,

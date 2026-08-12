@@ -5,6 +5,7 @@ import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-n
 import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { fill, plural, useTranslation } from '../src/i18n';
 import { useWardrobe } from '../src/store/wardrobe';
 import { GarmentCard } from '../src/ui/components/GarmentCard';
 import { MoodPicker } from '../src/ui/components/MoodPicker';
@@ -21,6 +22,7 @@ export default function WardrobeScreen() {
   const { width } = useWindowDimensions();
   const { ready, arranged, context, mood, moods, settings, selectMood, setColorOnly } =
     useWardrobe();
+  const { t } = useTranslation();
 
   const cardWidth = (width - spacing.lg * 2 - spacing.md * (COLUMNS - 1)) / COLUMNS;
 
@@ -34,18 +36,20 @@ export default function WardrobeScreen() {
         }}>
         <View style={styles.header}>
           <View style={styles.headerText}>
-            <Text style={[typography.display, { color: theme.text }]}>Guardaroba</Text>
+            <Text style={[typography.display, { color: theme.text }]}>{t.wardrobe.title}</Text>
             <Text style={[typography.body, { color: theme.textMuted }]}>
               {arranged.length === 0
-                ? 'Ancora vuoto'
-                : `${arranged.length} ${arranged.length === 1 ? 'capo' : 'capi'} · ${mood.tagline.toLowerCase()}`}
+                ? t.wardrobe.empty
+                : `${plural(t.wardrobe.count, arranged.length)} · ${t.moods[mood.id].tagline.toLowerCase()}`}
             </Text>
           </View>
 
           <View style={styles.headerActions}>
             <PressableScale
               accessibilityRole="button"
-              accessibilityLabel={settings.colorOnly ? 'Mostra le foto' : 'Mostra solo i colori'}
+              accessibilityLabel={
+                settings.colorOnly ? t.wardrobe.showPhotos : t.wardrobe.showColorsOnly
+              }
               onPress={() => setColorOnly(!settings.colorOnly)}
               style={[styles.iconButton, { borderColor: theme.line }]}>
               <Ionicons
@@ -57,7 +61,7 @@ export default function WardrobeScreen() {
 
             <PressableScale
               accessibilityRole="button"
-              accessibilityLabel="Impostazioni"
+              accessibilityLabel={t.wardrobe.openSettings}
               onPress={() => router.push('/settings')}
               style={[styles.iconButton, { borderColor: theme.line }]}>
               <Ionicons name="options-outline" size={18} color={theme.textMuted} />
@@ -69,7 +73,7 @@ export default function WardrobeScreen() {
           <Animated.View entering={FadeIn} style={styles.paletteBlock}>
             <PaletteBar swatches={context.families} height={12} />
             <Text style={[typography.caption, { color: theme.textMuted }]}>
-              LE FAMIGLIE DI COLORE DEL TUO GUARDAROBA
+              {t.wardrobe.families}
             </Text>
           </Animated.View>
         )}
@@ -81,10 +85,10 @@ export default function WardrobeScreen() {
         {settings.pinnedMoodId && (
           <View style={styles.pinnedRow}>
             <Text style={[typography.label, { color: theme.textMuted }]}>
-              Mood fisso · {mood.name}
+              {fill(t.wardrobe.pinnedMood, { mood: t.moods[mood.id].name })}
             </Text>
             <PressableScale onPress={() => router.push('/settings')} haptic={false}>
-              <Text style={[typography.label, { color: theme.text }]}>Cambia</Text>
+              <Text style={[typography.label, { color: theme.text }]}>{t.wardrobe.change}</Text>
             </PressableScale>
           </View>
         )}
@@ -113,7 +117,7 @@ export default function WardrobeScreen() {
       <View style={[styles.fabWrapper, { bottom: insets.bottom + spacing.lg }]}>
         <PressableScale
           accessibilityRole="button"
-          accessibilityLabel="Aggiungi un capo"
+          accessibilityLabel={t.wardrobe.addGarment}
           onPress={() => router.push('/capture')}
           style={[styles.fab, { backgroundColor: theme.text }]}>
           <Ionicons name="camera-outline" size={24} color={theme.background} />
@@ -125,19 +129,21 @@ export default function WardrobeScreen() {
 
 function EmptyState({ onPress }: { onPress: () => void }) {
   const theme = useTheme();
+  const { t } = useTranslation();
   return (
     <View style={styles.empty}>
       <Text style={[typography.title, { color: theme.text, textAlign: 'center' }]}>
-        Il colore comincia da un capo
+        {t.wardrobe.emptyTitle}
       </Text>
       <Text style={[typography.body, { color: theme.textMuted, textAlign: 'center' }]}>
-        Fotografa qualcosa che indossi spesso. Ne leggo i colori e da li' costruisco la palette del
-        tuo guardaroba.
+        {t.wardrobe.emptyBody}
       </Text>
       <PressableScale
         onPress={onPress}
         style={[styles.emptyButton, { backgroundColor: theme.text }]}>
-        <Text style={[typography.label, { color: theme.background }]}>Scatta la prima foto</Text>
+        <Text style={[typography.label, { color: theme.background }]}>
+          {t.wardrobe.emptyAction}
+        </Text>
       </PressableScale>
     </View>
   );

@@ -1,7 +1,7 @@
 # Color Wardrobe — note per chi ci lavora
 
-Expo SDK 57 / React Native 0.86 / expo-router. Prima di scrivere codice Expo,
-i documenti giusti sono quelli versionati: https://docs.expo.dev/versions/v57.0.0/
+Expo SDK 54 / React Native 0.81 / expo-router. Prima di scrivere codice Expo,
+i documenti giusti sono quelli versionati: https://docs.expo.dev/versions/v54.0.0/
 
 ## Convenzioni
 
@@ -15,6 +15,15 @@ i documenti giusti sono quelli versionati: https://docs.expo.dev/versions/v57.0.
   solo di grigi caldi: il colore lo mettono i capi.
 - Import senza estensione (li risolve Metro). I test vengono compilati prima da
   `tsc -p tsconfig.test.json`, per questo funzionano lo stesso.
+- **Nessuna stringa scritta a mano nelle schermate.** Tutto quello che l'utente
+  legge sta in `src/i18n/translations.ts`, dove l'italiano fa da tipo: se manca
+  una voce in inglese o spagnolo, il typecheck fallisce. Fanno eccezione i
+  `console.error`, che parlano a noi.
+- **Nel database vanno identificatori, non etichette.** Categorie, ruoli e mood
+  sono salvati come `knitwear`, `accento`, `flusso`; il testo mostrato arriva
+  dalle traduzioni. Aggiungere una categoria significa toccare `src/types.ts`,
+  i tre dizionari e, se ne rinomini una esistente, una migrazione in
+  `src/db/index.ts`.
 
 ## Prima di considerare finito un cambiamento
 

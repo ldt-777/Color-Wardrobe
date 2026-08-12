@@ -35,9 +35,11 @@ async function resizeTo(sourceUri: string, width: number, format: SaveFormat, co
   return resized.saveAsync({ format, compress });
 }
 
-async function moveInto(sourceUri: string, destination: File): Promise<string> {
+/** `move` e' sincrono e non accetta un flag di sovrascrittura: la destinazione
+ *  va liberata prima, altrimenti solleva. */
+function moveInto(sourceUri: string, destination: File): string {
   if (destination.exists) destination.delete();
-  await new File(sourceUri).move(destination, { overwrite: true });
+  new File(sourceUri).move(destination);
   return destination.uri;
 }
 
@@ -63,10 +65,10 @@ export async function prepareGarmentImage(
   const directory = garmentsDirectory();
 
   const full = await resizeTo(sourceUri, STORED_WIDTH, SaveFormat.JPEG, 0.86);
-  const imageUri = await moveInto(full.uri, new File(directory, `${garmentId}.jpg`));
+  const imageUri = moveInto(full.uri, new File(directory, `${garmentId}.jpg`));
 
   const thumb = await resizeTo(imageUri, THUMB_WIDTH, SaveFormat.JPEG, 0.7);
-  const thumbUri = await moveInto(thumb.uri, new File(directory, `${garmentId}-thumb.jpg`));
+  const thumbUri = moveInto(thumb.uri, new File(directory, `${garmentId}-thumb.jpg`));
 
   return { imageUri, thumbUri, swatches: await extractSwatches(imageUri) };
 }

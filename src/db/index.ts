@@ -33,6 +33,24 @@ const MIGRATIONS: string[] = [
 
   CREATE INDEX garments_created_at ON garments (created_at DESC);
   `,
+
+  // Le categorie erano salvate come etichette italiane. Ora la colonna contiene
+  // un identificatore stabile e il testo mostrato arriva dalle traduzioni:
+  // qui convertiamo i capi gia' archiviati. L'ultima riga raccoglie qualsiasi
+  // valore imprevisto invece di lasciare in giro categorie che nessuna lingua
+  // sa piu' tradurre.
+  `
+  UPDATE garments SET category = 'knitwear'    WHERE category = 'Maglieria';
+  UPDATE garments SET category = 'shirts'      WHERE category = 'Camicie';
+  UPDATE garments SET category = 'tshirts'     WHERE category = 'T-shirt';
+  UPDATE garments SET category = 'trousers'    WHERE category = 'Pantaloni';
+  UPDATE garments SET category = 'jackets'     WHERE category = 'Giacche';
+  UPDATE garments SET category = 'shoes'       WHERE category = 'Scarpe';
+  UPDATE garments SET category = 'accessories' WHERE category = 'Accessori';
+  UPDATE garments SET category = 'other'       WHERE category NOT IN (
+    'knitwear', 'shirts', 'tshirts', 'trousers', 'jackets', 'shoes', 'accessories'
+  );
+  `,
 ];
 
 let connection: Promise<SQLite.SQLiteDatabase> | null = null;

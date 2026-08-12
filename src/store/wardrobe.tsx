@@ -20,6 +20,7 @@ import { findMood, MOODS, type Mood } from '../color/moods';
 import type { Oklch } from '../color/space';
 import * as repository from '../db/garments';
 import { DEFAULT_SETTINGS, loadSettings, saveSetting, type AppSettings } from '../db/settings';
+import type { Language } from '../i18n/translations';
 import type { Category, Garment } from '../types';
 
 export type ArrangedGarment = Garment & {
@@ -41,6 +42,7 @@ type WardrobeValue = {
   selectMood: (moodId: string) => void;
   pinMood: (moodId: string | null) => Promise<void>;
   setColorOnly: (value: boolean) => Promise<void>;
+  setLanguage: (language: Language | null) => Promise<void>;
   addGarment: (input: {
     id: string;
     name: string;
@@ -154,6 +156,11 @@ export function WardrobeProvider({ children }: { children: React.ReactNode }) {
     await saveSetting('colorOnly', value);
   }, []);
 
+  const setLanguage = useCallback(async (language: Language | null) => {
+    setSettings((current) => ({ ...current, language }));
+    await saveSetting('language', language);
+  }, []);
+
   const addGarment = useCallback<WardrobeValue['addGarment']>(async (input) => {
     const saved = await repository.insertGarment(input);
     setGarments((current) => [saved, ...current]);
@@ -200,6 +207,7 @@ export function WardrobeProvider({ children }: { children: React.ReactNode }) {
       selectMood,
       pinMood,
       setColorOnly,
+      setLanguage,
       addGarment,
       removeGarment,
       rename,
@@ -215,6 +223,7 @@ export function WardrobeProvider({ children }: { children: React.ReactNode }) {
       selectMood,
       pinMood,
       setColorOnly,
+      setLanguage,
       addGarment,
       removeGarment,
       rename,

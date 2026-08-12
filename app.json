@@ -61,12 +61,20 @@
           "image": "./assets/splash-icon.png",
           "resizeMode": "contain",
           "backgroundColor": "#FBFAF8",
-          "dark": { "backgroundColor": "#0E0E10" }
+          "dark": {
+            "backgroundColor": "#0E0E10"
+          }
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "locales": {
+      "it": "./locales/it.json",
+      "en": "./locales/en.json",
+      "es": "./locales/es.json"
     }
   }
 }

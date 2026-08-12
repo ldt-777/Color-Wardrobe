@@ -7,6 +7,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { prepareGarmentImage } from '../src/color/extract';
+import { useTranslation } from '../src/i18n';
 import { setDraft } from '../src/store/draft';
 import { PressableScale } from '../src/ui/components/PressableScale';
 import { radius, spacing, type as typography, useTheme } from '../src/ui/theme';
@@ -19,6 +20,7 @@ export default function CaptureScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const camera = useRef<CameraView>(null);
+  const { t } = useTranslation();
 
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<CameraType>('back');
@@ -35,7 +37,7 @@ export default function CaptureScreen() {
       router.replace('/review');
     } catch (cause) {
       console.error('Analisi della foto fallita', cause);
-      setError('Non sono riuscito a leggere i colori di questa foto. Riprova.');
+      setError(t.capture.error);
       setBusy(false);
     }
   }
@@ -59,18 +61,18 @@ export default function CaptureScreen() {
     return (
       <View style={[styles.screen, styles.centered, { backgroundColor: theme.background }]}>
         <Text style={[typography.title, { color: theme.text, textAlign: 'center' }]}>
-          Serve la fotocamera
+          {t.capture.permissionTitle}
         </Text>
         <Text style={[typography.body, { color: theme.textMuted, textAlign: 'center' }]}>
-          Le foto restano sul telefono: servono solo per leggere i colori dei tuoi capi.
+          {t.capture.permissionBody}
         </Text>
         <PressableScale
           onPress={requestPermission}
           style={[styles.primaryButton, { backgroundColor: theme.text }]}>
-          <Text style={[typography.label, { color: theme.background }]}>Consenti</Text>
+          <Text style={[typography.label, { color: theme.background }]}>{t.capture.allow}</Text>
         </PressableScale>
         <PressableScale onPress={() => router.back()} haptic={false}>
-          <Text style={[typography.label, { color: theme.textMuted }]}>Non ora</Text>
+          <Text style={[typography.label, { color: theme.textMuted }]}>{t.capture.notNow}</Text>
         </PressableScale>
       </View>
     );
@@ -83,14 +85,14 @@ export default function CaptureScreen() {
       {busy && (
         <View style={styles.busy}>
           <ActivityIndicator color="#FFFFFF" />
-          <Text style={[typography.label, styles.busyText]}>Leggo i colori…</Text>
+          <Text style={[typography.label, styles.busyText]}>{t.capture.reading}</Text>
         </View>
       )}
 
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>
         <PressableScale
           accessibilityRole="button"
-          accessibilityLabel="Chiudi"
+          accessibilityLabel={t.common.close}
           onPress={() => router.back()}
           style={styles.ghostButton}>
           <Ionicons name="close" size={22} color="#FFFFFF" />
@@ -98,7 +100,7 @@ export default function CaptureScreen() {
 
         <PressableScale
           accessibilityRole="button"
-          accessibilityLabel="Cambia fotocamera"
+          accessibilityLabel={t.capture.flipCamera}
           onPress={() => setFacing((current) => (current === 'back' ? 'front' : 'back'))}
           style={styles.ghostButton}>
           <Ionicons name="camera-reverse-outline" size={22} color="#FFFFFF" />
@@ -109,15 +111,13 @@ export default function CaptureScreen() {
         {error ? (
           <Text style={[typography.label, styles.error]}>{error}</Text>
         ) : (
-          <Text style={[typography.label, styles.hint]}>
-            Inquadra il capo su un fondo semplice
-          </Text>
+          <Text style={[typography.label, styles.hint]}>{t.capture.hint}</Text>
         )}
 
         <View style={styles.controls}>
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel="Scegli dalla galleria"
+            accessibilityLabel={t.capture.fromLibrary}
             onPress={pickFromLibrary}
             disabled={busy}
             style={styles.ghostButton}>
@@ -126,7 +126,7 @@ export default function CaptureScreen() {
 
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel="Scatta"
+            accessibilityLabel={t.capture.shoot}
             onPress={shoot}
             disabled={busy}
             style={styles.shutter}>
@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
   hint: { color: 'rgba(255, 255, 255, 0.75)', textAlign: 'center' },
   error: { color: '#FFC9C0', textAlign: 'center' },
   busy: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.md,

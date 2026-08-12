@@ -6,18 +6,12 @@ import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { readableInk } from '../../src/color/space';
+import { fill, useTranslation } from '../../src/i18n';
 import { useWardrobe } from '../../src/store/wardrobe';
 import { Field } from '../../src/ui/components/Field';
 import { PaletteBar } from '../../src/ui/components/PaletteBar';
 import { PressableScale } from '../../src/ui/components/PressableScale';
 import { radius, spacing, type as typography, useTheme } from '../../src/ui/theme';
-
-const ROLE_LABELS: Record<string, string> = {
-  base: 'Colore base',
-  secondario: 'Secondario',
-  accento: 'Accento',
-  neutro: 'Neutro',
-};
 
 export default function GarmentScreen() {
   const theme = useTheme();
@@ -25,15 +19,16 @@ export default function GarmentScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { arranged, mood, removeGarment, matchesFor } = useWardrobe();
+  const { t } = useTranslation();
 
   const garment = arranged.find((item) => item.id === id);
 
   if (!garment) {
     return (
       <View style={[styles.screen, styles.centered, { backgroundColor: theme.background }]}>
-        <Text style={[typography.body, { color: theme.textMuted }]}>Capo non trovato.</Text>
+        <Text style={[typography.body, { color: theme.textMuted }]}>{t.garment.notFound}</Text>
         <PressableScale onPress={() => router.replace('/')} haptic={false}>
-          <Text style={[typography.label, { color: theme.text }]}>Torna al guardaroba</Text>
+          <Text style={[typography.label, { color: theme.text }]}>{t.common.backToWardrobe}</Text>
         </PressableScale>
       </View>
     );
@@ -43,10 +38,10 @@ export default function GarmentScreen() {
 
   function confirmDelete() {
     if (!garment) return;
-    Alert.alert('Eliminare questo capo?', 'La foto e i suoi colori verranno rimossi.', [
-      { text: 'Annulla', style: 'cancel' },
+    Alert.alert(t.garment.deleteTitle, t.garment.deleteBody, [
+      { text: t.common.cancel, style: 'cancel' },
       {
-        text: 'Elimina',
+        text: t.common.delete,
         style: 'destructive',
         onPress: async () => {
           await removeGarment(garment.id);
@@ -68,14 +63,14 @@ export default function GarmentScreen() {
       <View style={styles.topBar}>
         <PressableScale
           accessibilityRole="button"
-          accessibilityLabel="Indietro"
+          accessibilityLabel={t.common.back}
           onPress={() => router.back()}
           style={[styles.iconButton, { borderColor: theme.line }]}>
           <Ionicons name="chevron-back" size={18} color={theme.textMuted} />
         </PressableScale>
         <PressableScale
           accessibilityRole="button"
-          accessibilityLabel="Elimina capo"
+          accessibilityLabel={t.garment.deleteAction}
           onPress={confirmDelete}
           style={[styles.iconButton, { borderColor: theme.line }]}>
           <Ionicons name="trash-outline" size={18} color={theme.textMuted} />
@@ -86,18 +81,20 @@ export default function GarmentScreen() {
         <Image source={{ uri: garment.imageUri }} style={styles.photo} contentFit="cover" />
         <View style={styles.heroText}>
           <Text style={[typography.title, { color: theme.text }]}>{garment.name}</Text>
-          <Text style={[typography.body, { color: theme.textMuted }]}>{garment.category}</Text>
+          <Text style={[typography.body, { color: theme.textMuted }]}>
+            {t.categories[garment.category]}
+          </Text>
         </View>
         <PaletteBar swatches={garment.swatches} height={14} />
       </View>
 
       <View style={styles.section}>
-        <Field label="Palette del capo">
+        <Field label={t.garment.palette}>
           <View style={styles.swatchList}>
             {garment.swatches.map((swatch) => (
               <View key={swatch.hex} style={[styles.swatchRow, { backgroundColor: swatch.hex }]}>
                 <Text style={[typography.label, { color: readableInk(swatch.hex) }]}>
-                  {ROLE_LABELS[swatch.role]}
+                  {t.roles[swatch.role]}
                 </Text>
                 <Text
                   style={[typography.caption, { color: readableInk(swatch.hex), opacity: 0.75 }]}>
@@ -110,22 +107,22 @@ export default function GarmentScreen() {
       </View>
 
       <View style={styles.section}>
-        <Field label="Nel tuo guardaroba">
+        <Field label={t.garment.inWardrobe}>
           <View style={[styles.metrics, { borderColor: theme.line }]}>
             <Metric
-              label="Versatilita"
+              label={t.garment.versatility}
               value={`${Math.round(garment.stats.versatility * 100)}%`}
-              hint="dei capi ci si abbina"
+              hint={t.garment.versatilityHint}
             />
             <Metric
-              label="Rarita"
+              label={t.garment.rarity}
               value={`${Math.round(garment.stats.rarity * 100)}%`}
-              hint="quanto e un colore fuori dal coro"
+              hint={t.garment.rarityHint}
             />
             <Metric
-              label={`Mood ${mood.name}`}
+              label={fill(t.garment.moodAffinity, { mood: t.moods[mood.id].name })}
               value={`${Math.round(garment.affinity * 100)}%`}
-              hint="quanto rientra nel mood attivo"
+              hint={t.garment.moodAffinityHint}
             />
           </View>
         </Field>
@@ -133,13 +130,13 @@ export default function GarmentScreen() {
 
       {matches.length > 0 && (
         <View style={styles.section}>
-          <Field label="Ci sta bene con">
+          <Field label={t.garment.matches}>
             <View style={styles.matches}>
               {matches.map(({ garment: other, score }) => (
                 <PressableScale
                   key={other.id}
                   accessibilityRole="button"
-                  accessibilityLabel={`${other.name}, affinita ${Math.round(score * 100)} percento`}
+                  accessibilityLabel={`${other.name} · ${Math.round(score * 100)}%`}
                   onPress={() => router.replace(`/garment/${other.id}`)}
                   style={styles.match}>
                   <View

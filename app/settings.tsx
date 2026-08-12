@@ -4,6 +4,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { LANGUAGE_NAMES, LANGUAGES, useTranslation, type Language } from '../src/i18n';
 import { useWardrobe } from '../src/store/wardrobe';
 import { Field } from '../src/ui/components/Field';
 import { PressableScale } from '../src/ui/components/PressableScale';
@@ -13,7 +14,8 @@ export default function SettingsScreen() {
   const theme = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { moods, settings, pinMood, setColorOnly } = useWardrobe();
+  const { moods, settings, pinMood, setColorOnly, setLanguage } = useWardrobe();
+  const { t, language } = useTranslation();
 
   return (
     <ScrollView
@@ -27,34 +29,60 @@ export default function SettingsScreen() {
       <View style={styles.topBar}>
         <PressableScale
           accessibilityRole="button"
-          accessibilityLabel="Indietro"
+          accessibilityLabel={t.common.back}
           onPress={() => router.back()}
           style={[styles.iconButton, { borderColor: theme.line }]}>
           <Ionicons name="chevron-back" size={18} color={theme.textMuted} />
         </PressableScale>
-        <Text style={[typography.label, { color: theme.textMuted }]}>Impostazioni</Text>
+        <Text style={[typography.label, { color: theme.textMuted }]}>{t.settings.title}</Text>
         <View style={styles.iconButton} />
       </View>
 
       <View style={styles.section}>
-        <Field label="Mood fisso">
+        <Field label={t.settings.language}>
           <Text style={[typography.body, { color: theme.textMuted }]}>
-            Con un mood fisso il guardaroba si ordina sempre allo stesso modo e i pulsanti in alto
-            spariscono. Senza, puoi cambiare mood quando vuoi.
+            {t.settings.languageBody}
           </Text>
 
-          <View style={styles.moodList}>
-            <MoodOption
-              label="Nessuno"
-              description="Scelgo di volta in volta"
+          <View style={styles.optionList}>
+            <Option
+              label={t.settings.languageSystem}
+              // Quando la lingua segue il telefono mostriamo quale ha scelto:
+              // "Come il telefono" da solo non dice in che lingua si finisce.
+              description={`${t.settings.languageSystemBody} · ${LANGUAGE_NAMES[language]}`}
+              active={settings.language === null}
+              onPress={() => setLanguage(null)}
+            />
+            {LANGUAGES.map((code: Language) => (
+              <Option
+                key={code}
+                label={LANGUAGE_NAMES[code]}
+                active={settings.language === code}
+                onPress={() => setLanguage(code)}
+              />
+            ))}
+          </View>
+        </Field>
+      </View>
+
+      <View style={styles.section}>
+        <Field label={t.settings.pinnedMood}>
+          <Text style={[typography.body, { color: theme.textMuted }]}>
+            {t.settings.pinnedMoodBody}
+          </Text>
+
+          <View style={styles.optionList}>
+            <Option
+              label={t.settings.pinnedMoodNone}
+              description={t.settings.pinnedMoodNoneBody}
               active={settings.pinnedMoodId === null}
               onPress={() => pinMood(null)}
             />
             {moods.map((mood) => (
-              <MoodOption
+              <Option
                 key={mood.id}
-                label={mood.name}
-                description={mood.tagline}
+                label={t.moods[mood.id].name}
+                description={t.moods[mood.id].tagline}
                 active={settings.pinnedMoodId === mood.id}
                 onPress={() => pinMood(mood.id)}
               />
@@ -66,9 +94,9 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <View style={[styles.switchRow, { borderColor: theme.line }]}>
           <View style={styles.switchText}>
-            <Text style={[typography.label, { color: theme.text }]}>Solo colore</Text>
+            <Text style={[typography.label, { color: theme.text }]}>{t.settings.colorOnly}</Text>
             <Text style={[typography.body, { color: theme.textMuted }]}>
-              Nasconde le foto e lascia il guardaroba come pura griglia di colori.
+              {t.settings.colorOnlyBody}
             </Text>
           </View>
           <Switch value={settings.colorOnly} onValueChange={setColorOnly} />
@@ -76,10 +104,9 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.section}>
-        <Field label="Dove finiscono le foto">
+        <Field label={t.settings.privacy}>
           <Text style={[typography.body, { color: theme.textMuted }]}>
-            Tutto resta su questo telefono: le immagini in una cartella privata dell app e i colori
-            in un database locale. Niente account, niente rete.
+            {t.settings.privacyBody}
           </Text>
         </Field>
       </View>
@@ -87,14 +114,14 @@ export default function SettingsScreen() {
   );
 }
 
-function MoodOption({
+function Option({
   label,
   description,
   active,
   onPress,
 }: {
   label: string;
-  description: string;
+  description?: string;
   active: boolean;
   onPress: () => void;
 }) {
@@ -105,15 +132,17 @@ function MoodOption({
       accessibilityState={{ selected: active }}
       onPress={onPress}
       style={[
-        styles.moodOption,
+        styles.option,
         {
           borderColor: active ? theme.text : theme.line,
           backgroundColor: active ? theme.surfaceMuted : 'transparent',
         },
       ]}>
-      <View style={styles.moodText}>
+      <View style={styles.optionText}>
         <Text style={[typography.label, { color: theme.text }]}>{label}</Text>
-        <Text style={[typography.caption, { color: theme.textMuted }]}>{description}</Text>
+        {description ? (
+          <Text style={[typography.caption, { color: theme.textMuted }]}>{description}</Text>
+        ) : null}
       </View>
       {active && <Ionicons name="checkmark" size={18} color={theme.text} />}
     </PressableScale>
@@ -137,8 +166,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   section: { paddingHorizontal: spacing.lg, gap: spacing.md },
-  moodList: { gap: spacing.sm },
-  moodOption: {
+  optionList: { gap: spacing.sm },
+  option: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -148,7 +177,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
   },
-  moodText: { flex: 1, gap: 2 },
+  optionText: { flex: 1, gap: 2 },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
