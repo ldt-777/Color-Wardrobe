@@ -1,18 +1,19 @@
-import type { Swatch } from '../color/quantize';
-
 /**
- * Il capo in lavorazione fra lo scatto e il salvataggio.
+ * La foto in lavorazione fra lo scatto e il salvataggio.
  *
- * Sta in un modulo invece che nei parametri di navigazione perche' contiene una
- * palette gia' calcolata: passarla come stringa nell'URL significherebbe
- * serializzarla e riparsarla a ogni transizione.
+ * Contiene solo l'originale: ritaglio, scontorno e palette si calcolano nella
+ * schermata di revisione, quando l'utente ha deciso l'inquadratura. Elaborare
+ * prima significherebbe rifare tutto al primo ritocco.
+ *
+ * Sta in un modulo invece che nei parametri di navigazione perche' le
+ * dimensioni servono ai calcoli del ritaglio, e passarle come stringhe
+ * nell'URL vorrebbe dire riparsarle a ogni transizione.
  */
 export type GarmentDraft = {
   id: string;
   sourceUri: string;
-  imageUri: string;
-  thumbUri: string;
-  swatches: Swatch[];
+  width: number;
+  height: number;
 };
 
 let draft: GarmentDraft | null = null;

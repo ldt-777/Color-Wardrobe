@@ -59,6 +59,7 @@ const it = {
     allow: 'Consenti',
     notNow: 'Non ora',
     reading: 'Leggo i colori…',
+    preparing: 'Un attimo…',
     hint: 'Inquadra il capo su un fondo semplice',
     error: 'Non sono riuscito a leggere i colori di questa foto. Riprova.',
     flipCamera: 'Cambia fotocamera',
@@ -69,6 +70,10 @@ const it = {
   review: {
     title: 'Nuovo capo',
     noDraft: 'Nessuna foto da salvare.',
+    cropHint: 'Trascina e pizzica per inquadrare il capo',
+    removeBackground: 'Togli lo sfondo',
+    removeBackgroundBody:
+      'Ritaglia il capo e lo appoggia sul fondo neutro della scheda. Riesce meglio su fondi uniformi.',
     colorsFound: 'I colori che ho letto',
     name: 'Nome',
     category: 'Categoria',
@@ -174,6 +179,7 @@ const en: Dictionary = {
     allow: 'Allow',
     notNow: 'Not now',
     reading: 'Reading the colours…',
+    preparing: 'One moment…',
     hint: 'Frame the piece against a plain background',
     error: 'I could not read the colours in this photo. Try again.',
     flipCamera: 'Flip camera',
@@ -184,6 +190,10 @@ const en: Dictionary = {
   review: {
     title: 'New piece',
     noDraft: 'No photo to save.',
+    cropHint: 'Drag and pinch to frame the piece',
+    removeBackground: 'Remove the background',
+    removeBackgroundBody:
+      'Cuts the piece out and sets it on the card neutral. Works best on plain backgrounds.',
     colorsFound: 'The colours I read',
     name: 'Name',
     category: 'Category',
@@ -287,6 +297,7 @@ const es: Dictionary = {
     allow: 'Permitir',
     notNow: 'Ahora no',
     reading: 'Leyendo los colores…',
+    preparing: 'Un momento…',
     hint: 'Encuadra la prenda sobre un fondo liso',
     error: 'No he podido leer los colores de esta foto. Inténtalo otra vez.',
     flipCamera: 'Cambiar cámara',
@@ -297,6 +308,10 @@ const es: Dictionary = {
   review: {
     title: 'Prenda nueva',
     noDraft: 'No hay ninguna foto que guardar.',
+    cropHint: 'Arrastra y pellizca para encuadrar la prenda',
+    removeBackground: 'Quitar el fondo',
+    removeBackgroundBody:
+      'Recorta la prenda y la apoya sobre el neutro de la tarjeta. Funciona mejor con fondos lisos.',
     colorsFound: 'Los colores que he leído',
     name: 'Nombre',
     category: 'Categoría',

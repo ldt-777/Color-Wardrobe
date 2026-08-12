@@ -49,6 +49,7 @@ type WardrobeValue = {
     category: Category;
     imageUri: string;
     thumbUri: string;
+    cutoutUri: string | null;
     swatches: Swatch[];
   }) => Promise<void>;
   removeGarment: (id: string) => Promise<void>;

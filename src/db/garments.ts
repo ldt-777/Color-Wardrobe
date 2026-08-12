@@ -11,6 +11,7 @@ type GarmentRow = {
   category: string;
   image_uri: string;
   thumb_uri: string;
+  cutout_uri: string | null;
   created_at: number;
 };
 
@@ -64,6 +65,7 @@ export async function listGarments(): Promise<Garment[]> {
     category: row.category as Category,
     imageUri: row.image_uri,
     thumbUri: row.thumb_uri,
+    cutoutUri: row.cutout_uri,
     createdAt: row.created_at,
     swatches: rankSwatches(byGarment.get(row.id) ?? []),
   }));
@@ -75,6 +77,7 @@ export async function insertGarment(garment: {
   category: Category;
   imageUri: string;
   thumbUri: string;
+  cutoutUri: string | null;
   swatches: Swatch[];
 }): Promise<Garment> {
   const db = await getDatabase();
@@ -83,13 +86,14 @@ export async function insertGarment(garment: {
 
   await db.withTransactionAsync(async () => {
     await db.runAsync(
-      `INSERT INTO garments (id, name, category, image_uri, thumb_uri, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO garments (id, name, category, image_uri, thumb_uri, cutout_uri, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       garment.id,
       garment.name,
       garment.category,
       garment.imageUri,
       garment.thumbUri,
+      garment.cutoutUri,
       createdAt
     );
 
@@ -115,6 +119,7 @@ export async function insertGarment(garment: {
     category: garment.category,
     imageUri: garment.imageUri,
     thumbUri: garment.thumbUri,
+    cutoutUri: garment.cutoutUri,
     createdAt,
     swatches: ranked,
   };

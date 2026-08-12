@@ -6,7 +6,6 @@ import React, { useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { prepareGarmentImage } from '../src/color/extract';
 import { useTranslation } from '../src/i18n';
 import { setDraft } from '../src/store/draft';
 import { PressableScale } from '../src/ui/components/PressableScale';
@@ -27,24 +26,25 @@ export default function CaptureScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function process(sourceUri: string) {
-    setBusy(true);
-    setError(null);
-    try {
-      const id = newId();
-      const prepared = await prepareGarmentImage(sourceUri, id);
-      setDraft({ id, sourceUri, ...prepared });
-      router.replace('/review');
-    } catch (cause) {
-      console.error('Analisi della foto fallita', cause);
-      setError(t.capture.error);
-      setBusy(false);
-    }
+  // La foto passa alla revisione cosi' com'e': ritaglio, scontorno e palette
+  // si calcolano la', una volta sola, quando l'inquadratura e' decisa.
+  function handoff(photo: { uri: string; width: number; height: number }) {
+    setDraft({ id: newId(), sourceUri: photo.uri, width: photo.width, height: photo.height });
+    router.replace('/review');
   }
 
   async function shoot() {
-    const photo = await camera.current?.takePictureAsync({ quality: 0.9, skipProcessing: false });
-    if (photo?.uri) await process(photo.uri);
+    setBusy(true);
+    setError(null);
+    try {
+      const photo = await camera.current?.takePictureAsync({ quality: 0.9 });
+      if (photo?.uri) handoff(photo);
+      else setBusy(false);
+    } catch (cause) {
+      console.error('Scatto fallito', cause);
+      setError(t.capture.error);
+      setBusy(false);
+    }
   }
 
   async function pickFromLibrary() {
@@ -52,7 +52,10 @@ export default function CaptureScreen() {
       mediaTypes: ['images'],
       quality: 0.9,
     });
-    if (!result.canceled && result.assets[0]) await process(result.assets[0].uri);
+    const asset = result.assets?.[0];
+    if (!result.canceled && asset) {
+      handoff({ uri: asset.uri, width: asset.width, height: asset.height });
+    }
   }
 
   if (!permission) return <View style={[styles.screen, { backgroundColor: '#000' }]} />;
@@ -85,7 +88,7 @@ export default function CaptureScreen() {
       {busy && (
         <View style={styles.busy}>
           <ActivityIndicator color="#FFFFFF" />
-          <Text style={[typography.label, styles.busyText]}>{t.capture.reading}</Text>
+          <Text style={[typography.label, styles.busyText]}>{t.capture.preparing}</Text>
         </View>
       )}
 

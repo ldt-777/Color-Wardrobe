@@ -51,6 +51,10 @@ const MIGRATIONS: string[] = [
     'knitwear', 'shirts', 'tshirts', 'trousers', 'jackets', 'shoes', 'accessories'
   );
   `,
+
+  // Il PNG del capo scontornato. Ammette NULL: lo scontorno non riesce su ogni
+  // foto, e i capi salvati prima di questa versione non ce l'hanno affatto.
+  `ALTER TABLE garments ADD COLUMN cutout_uri TEXT;`,
 ];
 
 let connection: Promise<SQLite.SQLiteDatabase> | null = null;

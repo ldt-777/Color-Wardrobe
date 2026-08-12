@@ -105,6 +105,7 @@ export default function WardrobeScreen() {
                 style={{ width: cardWidth }}>
                 <GarmentCard
                   garment={garment}
+                  mood={mood.id}
                   colorOnly={settings.colorOnly}
                   onPress={() => router.push(`/garment/${garment.id}`)}
                 />

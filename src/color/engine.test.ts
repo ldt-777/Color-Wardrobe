@@ -13,6 +13,7 @@ import { arrangeGarments, type Arrangeable, type ArrangementId } from './arrange
 import { harmonyScore, pairsWell } from './harmony';
 import { quantizeImage, type Swatch } from './quantize';
 import { buildWardrobeContext, rankSwatches, signatureSwatch } from './roles';
+import { cutOutBackground, detectSubjectBounds, opaqueShare } from './subject';
 import {
   deltaE,
   hexToOklab,
@@ -281,5 +282,95 @@ describe('ordine ideale dei capi', () => {
   it('regge zero e un capo', () => {
     assert.equal(arrangeGarments([], 'spettro').length, 0);
     assert.equal(arrangeGarments(arrangeables.slice(0, 1), 'flusso').length, 1);
+  });
+});
+
+// --- ritaglio e scontorno --------------------------------------------------
+
+describe('rilevamento del capo', () => {
+  /** Capo scuro centrato su fondo chiaro, con margini noti. */
+  const onPlainBackground = () =>
+    image(200, 200, (x, y) =>
+      x >= 50 && x < 150 && y >= 40 && y < 160 ? [40, 60, 130] : [244, 243, 240]
+    );
+
+  it('trova il rettangolo attorno al capo', () => {
+    const rect = detectSubjectBounds(onPlainBackground());
+    assert.ok(rect, 'nessun rettangolo trovato');
+
+    // Il rilevamento aggiunge un margine, quindi il rettangolo deve contenere
+    // il capo e restare vicino ai suoi bordi.
+    assert.ok(rect.x <= 0.25 && rect.x > 0.15, `x = ${rect.x}`);
+    assert.ok(rect.y <= 0.2 && rect.y > 0.1, `y = ${rect.y}`);
+    assert.ok(rect.x + rect.width >= 0.75, `bordo destro = ${rect.x + rect.width}`);
+    assert.ok(rect.y + rect.height >= 0.8, `bordo inferiore = ${rect.y + rect.height}`);
+  });
+
+  it('resta dentro l inquadratura', () => {
+    const rect = detectSubjectBounds(onPlainBackground())!;
+    assert.ok(rect.x >= 0 && rect.y >= 0);
+    assert.ok(rect.x + rect.width <= 1 && rect.y + rect.height <= 1);
+  });
+
+  it('non propone ritagli quando il capo riempie la foto', () => {
+    assert.equal(detectSubjectBounds(image(160, 160, () => [40, 60, 130])), null);
+  });
+
+  it('segue il capo anche quando non e centrato', () => {
+    // Capo spostato in alto a sinistra: il rettangolo deve seguirlo, non
+    // limitarsi a stringere attorno al centro dell'inquadratura.
+    const rect = detectSubjectBounds(
+      image(200, 200, (x, y) =>
+        x >= 20 && x < 90 && y >= 15 && y < 95 ? [150, 40, 50] : [244, 243, 240]
+      )
+    )!;
+
+    assert.ok(rect, 'nessun rettangolo trovato');
+    assert.ok(rect.x < 0.12, `bordo sinistro troppo lontano: ${rect.x}`);
+    assert.ok(rect.x + rect.width < 0.55, `si estende troppo a destra: ${rect.x + rect.width}`);
+    assert.ok(rect.y + rect.height < 0.55, `si estende troppo in basso: ${rect.y + rect.height}`);
+  });
+});
+
+describe('scontorno', () => {
+  it('rende trasparente lo sfondo e lascia il capo', () => {
+    const cut = cutOutBackground(
+      image(120, 120, (x, y) =>
+        x >= 30 && x < 90 && y >= 30 && y < 90 ? [30, 120, 70] : [246, 245, 242]
+      )
+    );
+
+    const alphaAt = (x: number, y: number) => cut.data[(y * cut.width + x) * 4 + 3];
+    assert.equal(alphaAt(5, 5), 0, 'angolo ancora opaco');
+    assert.equal(alphaAt(60, 60), 255, 'centro del capo diventato trasparente');
+
+    const share = opaqueShare(cut);
+    // Il quadrato copre 60x60 su 120x120, cioe' un quarto della superficie.
+    assert.ok(Math.abs(share - 0.25) < 0.03, `superficie opaca ${share}`);
+  });
+
+  it('non intacca un capo dello stesso colore dello sfondo ma non collegato', () => {
+    // Camicia bianca su muro bianco: il centro non e' raggiungibile dal bordo
+    // senza attraversare la fascia scura, quindi resta.
+    const cut = cutOutBackground(
+      image(120, 120, (x, y) => {
+        const inside = x >= 30 && x < 90 && y >= 30 && y < 90;
+        const border = inside && (x < 36 || x >= 84 || y < 36 || y >= 84);
+        if (border) return [40, 40, 44];
+        return inside ? [246, 245, 242] : [246, 245, 242];
+      })
+    );
+
+    const alphaAt = (x: number, y: number) => cut.data[(y * cut.width + x) * 4 + 3];
+    assert.equal(alphaAt(60, 60), 255, 'interno chiaro cancellato');
+    assert.equal(alphaAt(2, 2), 0, 'sfondo rimasto');
+  });
+
+  it('si mangia tutto quando il capo tocca ogni bordo', () => {
+    // Non e' un difetto ma il segnale concordato: senza un bordo da cui
+    // partire il riempimento non ha appigli, e `prepareGarmentImage` scarta il
+    // risultato guardando proprio questa quota.
+    const solid = image(80, 80, () => [30, 120, 70]);
+    assert.ok(opaqueShare(cutOutBackground(solid)) < 0.05);
   });
 });

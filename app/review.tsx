@@ -1,42 +1,81 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { extractSwatches, prepareGarmentImage, suggestCrop } from '../src/color/extract';
+import type { Swatch } from '../src/color/quantize';
 import { rankSwatches } from '../src/color/roles';
 import { readableInk } from '../src/color/space';
+import { FULL_FRAME, type NormalizedRect } from '../src/color/subject';
 import { useTranslation, type Dictionary } from '../src/i18n';
 import { getDraft, setDraft } from '../src/store/draft';
 import { useWardrobe } from '../src/store/wardrobe';
+import { CropFrame } from '../src/ui/components/CropFrame';
 import { Field } from '../src/ui/components/Field';
 import { PaletteBar } from '../src/ui/components/PaletteBar';
 import { PressableScale } from '../src/ui/components/PressableScale';
 import { radius, spacing, type as typography, useTheme } from '../src/ui/theme';
 import { CATEGORIES, DEFAULT_CATEGORY, type Category } from '../src/types';
 
+/** Le schede del guardaroba sono 3:4: il ritaglio usa le stesse proporzioni. */
+const CARD_ASPECT = 3 / 4;
+
 export default function ReviewScreen() {
   const theme = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
   const { addGarment } = useWardrobe();
   const { t } = useTranslation();
 
   const draft = useMemo(getDraft, []);
-  const ranked = useMemo(() => rankSwatches(draft?.swatches ?? []), [draft]);
 
+  const [suggestion, setSuggestion] = useState<NormalizedRect | null>(null);
+  const [crop, setCrop] = useState<NormalizedRect>(FULL_FRAME);
+  const [swatches, setSwatches] = useState<Swatch[] | null>(null);
+  const [removeBackground, setRemoveBackground] = useState(true);
   const [name, setName] = useState('');
   const [category, setCategory] = useState<Category>(DEFAULT_CATEGORY);
   const [saving, setSaving] = useState(false);
+
+  const ranked = useMemo(() => rankSwatches(swatches ?? []), [swatches]);
+  const frameWidth = Math.min(screenWidth - spacing.lg * 2, 420);
+
+  // L'analisi che propone il ritaglio gira su una versione ridotta della foto,
+  // quindi e' rapida: la lanciamo appena la schermata si apre.
+  useEffect(() => {
+    if (!draft) return;
+    let cancelled = false;
+
+    (async () => {
+      const [proposed, palette] = await Promise.all([
+        suggestCrop(draft.sourceUri),
+        extractSwatches(draft.sourceUri),
+      ]);
+      if (cancelled) return;
+      setSuggestion(proposed);
+      setSwatches(palette);
+    })().catch((cause) => console.error('Analisi della foto fallita', cause));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [draft]);
+
+  const onCropChange = useCallback((rect: NormalizedRect) => setCrop(rect), []);
 
   if (!draft) {
     return (
@@ -53,13 +92,18 @@ export default function ReviewScreen() {
     if (!draft || saving) return;
     setSaving(true);
     try {
+      const prepared = await prepareGarmentImage(draft.sourceUri, draft.id, {
+        crop,
+        removeBackground,
+      });
       await addGarment({
         id: draft.id,
         name: name.trim() || suggestName(t, category),
         category,
-        imageUri: draft.imageUri,
-        thumbUri: draft.thumbUri,
-        swatches: draft.swatches,
+        imageUri: prepared.imageUri,
+        thumbUri: prepared.thumbUri,
+        cutoutUri: prepared.cutoutUri,
+        swatches: prepared.swatches,
       });
       setDraft(null);
       router.replace('/');
@@ -97,30 +141,66 @@ export default function ReviewScreen() {
         </View>
 
         <View style={styles.preview}>
-          <Image source={{ uri: draft.thumbUri }} style={styles.photo} contentFit="cover" />
-          <PaletteBar swatches={ranked} height={14} />
+          <CropFrame
+            uri={draft.sourceUri}
+            imageWidth={draft.width}
+            imageHeight={draft.height}
+            width={frameWidth}
+            aspect={CARD_ASPECT}
+            suggestion={suggestion}
+            onChange={onCropChange}
+          />
+          <Text style={[typography.caption, styles.hint, { color: theme.textMuted }]}>
+            {t.review.cropHint}
+          </Text>
+        </View>
+
+        <View style={styles.section}>
+          <View style={[styles.switchRow, { borderColor: theme.line }]}>
+            <View style={styles.switchText}>
+              <Text style={[typography.label, { color: theme.text }]}>
+                {t.review.removeBackground}
+              </Text>
+              <Text style={[typography.body, { color: theme.textMuted }]}>
+                {t.review.removeBackgroundBody}
+              </Text>
+            </View>
+            <Switch value={removeBackground} onValueChange={setRemoveBackground} />
+          </View>
         </View>
 
         <View style={styles.section}>
           <Field label={t.review.colorsFound}>
-            <View style={styles.swatchList}>
-              {ranked.map((swatch) => (
-                <View
-                  key={swatch.hex}
-                  style={[styles.swatchRow, { backgroundColor: swatch.hex }]}>
-                  <Text style={[typography.label, { color: readableInk(swatch.hex) }]}>
-                    {swatch.hex.toUpperCase()}
-                  </Text>
-                  <Text
-                    style={[
-                      typography.caption,
-                      { color: readableInk(swatch.hex), opacity: 0.75 },
-                    ]}>
-                    {t.roles[swatch.role].toUpperCase()} · {Math.round(swatch.share * 100)}%
-                  </Text>
+            {swatches === null ? (
+              <View style={styles.loading}>
+                <ActivityIndicator color={theme.textMuted} />
+                <Text style={[typography.body, { color: theme.textMuted }]}>
+                  {t.capture.reading}
+                </Text>
+              </View>
+            ) : (
+              <>
+                <PaletteBar swatches={ranked} height={14} />
+                <View style={styles.swatchList}>
+                  {ranked.map((swatch) => (
+                    <View
+                      key={swatch.hex}
+                      style={[styles.swatchRow, { backgroundColor: swatch.hex }]}>
+                      <Text style={[typography.label, { color: readableInk(swatch.hex) }]}>
+                        {swatch.hex.toUpperCase()}
+                      </Text>
+                      <Text
+                        style={[
+                          typography.caption,
+                          { color: readableInk(swatch.hex), opacity: 0.75 },
+                        ]}>
+                        {t.roles[swatch.role].toUpperCase()} · {Math.round(swatch.share * 100)}%
+                      </Text>
+                    </View>
+                  ))}
                 </View>
-              ))}
-            </View>
+              </>
+            )}
           </Field>
         </View>
 
@@ -194,7 +274,7 @@ const suggestName = (t: Dictionary, category: Category) =>
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  centered: { alignItems: 'center', justifyContent: 'center', gap: spacing.md },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -209,10 +289,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  preview: { paddingHorizontal: spacing.lg, gap: spacing.md },
-  photo: { width: '100%', aspectRatio: 3 / 4, borderRadius: radius.lg },
+  preview: { paddingHorizontal: spacing.lg, gap: spacing.sm },
+  hint: { textAlign: 'center' },
   section: { paddingHorizontal: spacing.lg },
-  swatchList: { gap: spacing.sm },
+  loading: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md },
+  swatchList: { gap: spacing.sm, marginTop: spacing.sm },
   swatchRow: {
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
@@ -230,6 +311,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: spacing.md,
+  },
+  switchText: { flex: 1, gap: spacing.xs },
   saveButton: {
     borderRadius: radius.pill,
     paddingVertical: spacing.md,

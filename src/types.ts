@@ -29,6 +29,8 @@ export type Garment = {
   category: Category;
   imageUri: string;
   thumbUri: string;
+  /** Capo scontornato su fondo trasparente; `null` se lo scontorno non e' riuscito. */
+  cutoutUri: string | null;
   createdAt: number;
   swatches: RankedSwatch[];
 };

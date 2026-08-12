@@ -157,9 +157,16 @@ function finalizeClusters(
 
 // --- campionamento dell'immagine -------------------------------------------
 
-type Sample = WeightedPoint & { x: number; y: number };
+export type Sample = WeightedPoint & { x: number; y: number };
 
-function collectSamples(buffer: PixelBuffer): Sample[] {
+/**
+ * Distanza percettiva entro cui due colori sono "lo stesso colore" quando si
+ * decide cosa e' sfondo. Piu' larga della soglia di fusione degli swatch:
+ * uno sfondo reale ha ombre e vignettatura, non e' una tinta piatta.
+ */
+export const BACKGROUND_TOLERANCE = 0.1;
+
+export function collectSamples(buffer: PixelBuffer): Sample[] {
   const { width, height, data } = buffer;
   const total = width * height;
   const stride = Math.max(1, Math.round(Math.sqrt(total / MAX_SAMPLES)));
@@ -202,7 +209,7 @@ function centerWeight(x: number, y: number, width: number, height: number): numb
  * controllo, un capo che riempie tutta l'inquadratura verrebbe scambiato per
  * sfondo e cancellato dalla propria palette.
  */
-function detectBackground(samples: Sample[], width: number, height: number): Oklab[] {
+export function detectBackgroundColors(samples: Sample[], width: number, height: number): Oklab[] {
   const marginX = width * 0.07;
   const marginY = height * 0.07;
   const border = samples.filter(
@@ -225,7 +232,9 @@ function detectBackground(samples: Sample[], width: number, height: number): Okl
   return candidates
     .filter((candidate) => {
       if (candidate.share < 0.3) return false;
-      const inCore = core.filter((s) => deltaE(s.lab, candidate.lab) < 0.1).length / core.length;
+      const inCore =
+        core.filter((s) => deltaE(s.lab, candidate.lab) < BACKGROUND_TOLERANCE).length /
+        core.length;
       return inCore < 0.3;
     })
     .map((candidate) => candidate.lab);
@@ -238,11 +247,11 @@ export function quantizeImage(buffer: PixelBuffer, k = 6): Swatch[] {
   const samples = collectSamples(buffer);
   if (samples.length === 0) return [];
 
-  const background = detectBackground(samples, buffer.width, buffer.height);
+  const background = detectBackgroundColors(samples, buffer.width, buffer.height);
 
   const points: WeightedPoint[] = samples.map((sample) => {
     let weight = centerWeight(sample.x, sample.y, buffer.width, buffer.height);
-    if (background.some((bg) => deltaE(sample.lab, bg) < 0.1)) weight *= 0.08;
+    if (background.some((bg) => deltaE(sample.lab, bg) < BACKGROUND_TOLERANCE)) weight *= 0.08;
     return { lab: sample.lab, weight };
   });
 
