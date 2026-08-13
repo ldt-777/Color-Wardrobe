@@ -3,8 +3,6 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -25,6 +23,7 @@ import { getDraft, setDraft } from '../src/store/draft';
 import { useWardrobe } from '../src/store/wardrobe';
 import { CropFrame } from '../src/ui/components/CropFrame';
 import { Field } from '../src/ui/components/Field';
+import { KeyboardPadding } from '../src/ui/components/KeyboardPadding';
 import { PaletteBar } from '../src/ui/components/PaletteBar';
 import { PressableScale } from '../src/ui/components/PressableScale';
 import { radius, spacing, type as typography, useTheme } from '../src/ui/theme';
@@ -32,6 +31,16 @@ import { CATEGORIES, DEFAULT_CATEGORY, type Category } from '../src/types';
 
 /** Le schede del guardaroba sono 3:4: il ritaglio usa le stesse proporzioni. */
 const CARD_ASPECT = 3 / 4;
+
+/**
+ * L'inserimento e' diviso in due passi: prima si inquadra, poi si descrive.
+ *
+ * Non e' solo ordine: finche' l'inquadratura non e' decisa, la palette mostrata
+ * sarebbe quella della foto intera, sfondo compreso. Chiedere prima il
+ * ritaglio significa che i colori che l'utente vede al passo dopo sono gia'
+ * quelli veri del capo.
+ */
+type Step = 'frame' | 'details';
 
 export default function ReviewScreen() {
   const theme = useTheme();
@@ -43,7 +52,9 @@ export default function ReviewScreen() {
 
   const draft = useMemo(getDraft, []);
 
+  const [step, setStep] = useState<Step>('frame');
   const [suggestion, setSuggestion] = useState<NormalizedRect | null>(null);
+  const [analysing, setAnalysing] = useState(true);
   const [crop, setCrop] = useState<NormalizedRect>(FULL_FRAME);
   const [swatches, setSwatches] = useState<Swatch[] | null>(null);
   const [removeBackground, setRemoveBackground] = useState(true);
@@ -52,23 +63,22 @@ export default function ReviewScreen() {
   const [saving, setSaving] = useState(false);
 
   const ranked = useMemo(() => rankSwatches(swatches ?? []), [swatches]);
-  const frameWidth = Math.min(screenWidth - spacing.lg * 2, 420);
+  const frameWidth = Math.min(screenWidth - spacing.lg * 2, 400);
 
-  // L'analisi che propone il ritaglio gira su una versione ridotta della foto,
-  // quindi e' rapida: la lanciamo appena la schermata si apre.
+  // Il ritaglio proposto arriva da un'analisi su una versione ridotta della
+  // foto, quindi e' rapida: parte appena la schermata si apre.
   useEffect(() => {
     if (!draft) return;
     let cancelled = false;
 
-    (async () => {
-      const [proposed, palette] = await Promise.all([
-        suggestCrop(draft.sourceUri),
-        extractSwatches(draft.sourceUri),
-      ]);
-      if (cancelled) return;
-      setSuggestion(proposed);
-      setSwatches(palette);
-    })().catch((cause) => console.error('Analisi della foto fallita', cause));
+    suggestCrop(draft.sourceUri)
+      .then((proposed) => {
+        if (!cancelled) setSuggestion(proposed);
+      })
+      .catch((cause) => console.error('Rilevamento del capo fallito', cause))
+      .finally(() => {
+        if (!cancelled) setAnalysing(false);
+      });
 
     return () => {
       cancelled = true;
@@ -88,16 +98,30 @@ export default function ReviewScreen() {
     );
   }
 
+  const source = draft;
+
+  /** Passa ai dettagli leggendo la palette del solo ritaglio scelto. */
+  async function confirmFrame() {
+    setStep('details');
+    setSwatches(null);
+    try {
+      setSwatches(await extractSwatches(source.sourceUri, crop));
+    } catch (cause) {
+      console.error('Analisi dei colori fallita', cause);
+      setSwatches([]);
+    }
+  }
+
   async function save() {
-    if (!draft || saving) return;
+    if (saving) return;
     setSaving(true);
     try {
-      const prepared = await prepareGarmentImage(draft.sourceUri, draft.id, {
+      const prepared = await prepareGarmentImage(source.sourceUri, source.id, {
         crop,
         removeBackground,
       });
       await addGarment({
-        id: draft.id,
+        id: source.id,
         name: name.trim() || suggestName(t, category),
         category,
         imageUri: prepared.imageUri,
@@ -113,13 +137,21 @@ export default function ReviewScreen() {
     }
   }
 
+  function leave() {
+    if (step === 'details') {
+      setStep('frame');
+      return;
+    }
+    setDraft(null);
+    router.replace('/');
+  }
+
   return (
-    <KeyboardAvoidingView
-      style={[styles.screen, { backgroundColor: theme.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <View style={[styles.screen, { backgroundColor: theme.background }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         contentContainerStyle={{
           paddingTop: insets.top + spacing.md,
           paddingBottom: insets.bottom + spacing.xxl,
@@ -128,143 +160,194 @@ export default function ReviewScreen() {
         <View style={styles.topBar}>
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel={t.common.cancel}
-            onPress={() => {
-              setDraft(null);
-              router.replace('/');
-            }}
+            accessibilityLabel={step === 'details' ? t.common.back : t.common.cancel}
+            onPress={leave}
             style={[styles.iconButton, { borderColor: theme.line }]}>
-            <Ionicons name="close" size={18} color={theme.textMuted} />
+            <Ionicons
+              name={step === 'details' ? 'chevron-back' : 'close'}
+              size={18}
+              color={theme.textMuted}
+            />
           </PressableScale>
-          <Text style={[typography.label, { color: theme.textMuted }]}>{t.review.title}</Text>
+          <Text style={[typography.label, { color: theme.textMuted }]}>
+            {step === 'frame' ? t.review.stepFrame : t.review.stepDetails}
+          </Text>
           <View style={styles.iconButton} />
         </View>
 
-        <View style={styles.preview}>
-          <CropFrame
-            uri={draft.sourceUri}
-            imageWidth={draft.width}
-            imageHeight={draft.height}
-            width={frameWidth}
-            aspect={CARD_ASPECT}
-            suggestion={suggestion}
-            onChange={onCropChange}
-          />
-          <Text style={[typography.caption, styles.hint, { color: theme.textMuted }]}>
-            {t.review.cropHint}
-          </Text>
-        </View>
+        <StepDots active={step === 'frame' ? 0 : 1} />
 
-        <View style={styles.section}>
-          <View style={[styles.switchRow, { borderColor: theme.line }]}>
-            <View style={styles.switchText}>
-              <Text style={[typography.label, { color: theme.text }]}>
-                {t.review.removeBackground}
-              </Text>
-              <Text style={[typography.body, { color: theme.textMuted }]}>
-                {t.review.removeBackgroundBody}
+        {step === 'frame' ? (
+          <>
+            <View style={styles.preview}>
+              <CropFrame
+                uri={source.sourceUri}
+                imageWidth={source.width}
+                imageHeight={source.height}
+                width={frameWidth}
+                aspect={CARD_ASPECT}
+                suggestion={suggestion}
+                onChange={onCropChange}
+              />
+              <Text style={[typography.body, styles.hint, { color: theme.textMuted }]}>
+                {analysing ? t.review.detecting : t.review.cropHint}
               </Text>
             </View>
-            <Switch value={removeBackground} onValueChange={setRemoveBackground} />
-          </View>
-        </View>
 
-        <View style={styles.section}>
-          <Field label={t.review.colorsFound}>
-            {swatches === null ? (
-              <View style={styles.loading}>
-                <ActivityIndicator color={theme.textMuted} />
-                <Text style={[typography.body, { color: theme.textMuted }]}>
-                  {t.capture.reading}
+            <View style={styles.section}>
+              <PressableScale
+                accessibilityRole="button"
+                onPress={confirmFrame}
+                style={[styles.primaryButton, { backgroundColor: theme.text }]}>
+                <Text style={[typography.label, { color: theme.background }]}>
+                  {t.review.continue}
                 </Text>
-              </View>
-            ) : (
-              <>
-                <PaletteBar swatches={ranked} height={14} />
-                <View style={styles.swatchList}>
-                  {ranked.map((swatch) => (
-                    <View
-                      key={swatch.hex}
-                      style={[styles.swatchRow, { backgroundColor: swatch.hex }]}>
-                      <Text style={[typography.label, { color: readableInk(swatch.hex) }]}>
-                        {swatch.hex.toUpperCase()}
-                      </Text>
-                      <Text
-                        style={[
-                          typography.caption,
-                          { color: readableInk(swatch.hex), opacity: 0.75 },
-                        ]}>
-                        {t.roles[swatch.role].toUpperCase()} · {Math.round(swatch.share * 100)}%
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              </>
-            )}
-          </Field>
-        </View>
-
-        <View style={styles.section}>
-          <Field label={t.review.name}>
-            <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder={suggestName(t, category)}
-              placeholderTextColor={theme.textMuted}
-              style={[
-                typography.body,
-                styles.input,
-                { color: theme.text, borderColor: theme.line },
-              ]}
-            />
-          </Field>
-        </View>
-
-        <View style={styles.section}>
-          <Field label={t.review.category}>
-            <View style={styles.categories}>
-              {CATEGORIES.map((option) => {
-                const active = option === category;
-                return (
-                  <PressableScale
-                    key={option}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                    onPress={() => setCategory(option)}
-                    style={[
-                      styles.categoryChip,
-                      {
-                        backgroundColor: active ? theme.text : 'transparent',
-                        borderColor: active ? theme.text : theme.line,
-                      },
-                    ]}>
-                    <Text
-                      style={[
-                        typography.label,
-                        { color: active ? theme.background : theme.textMuted },
-                      ]}>
-                      {t.categories[option]}
-                    </Text>
-                  </PressableScale>
-                );
-              })}
+              </PressableScale>
             </View>
-          </Field>
-        </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.section}>
+              <Field label={t.review.colorsFound}>
+                {swatches === null ? (
+                  <View style={styles.loading}>
+                    <ActivityIndicator color={theme.textMuted} />
+                    <Text style={[typography.body, { color: theme.textMuted }]}>
+                      {t.capture.reading}
+                    </Text>
+                  </View>
+                ) : (
+                  <>
+                    <PaletteBar swatches={ranked} height={14} />
+                    <View style={styles.swatchList}>
+                      {ranked.map((swatch) => (
+                        <View
+                          key={swatch.hex}
+                          style={[styles.swatchRow, { backgroundColor: swatch.hex }]}>
+                          <Text style={[typography.label, { color: readableInk(swatch.hex) }]}>
+                            {swatch.hex.toUpperCase()}
+                          </Text>
+                          <Text
+                            style={[
+                              typography.caption,
+                              { color: readableInk(swatch.hex), opacity: 0.75 },
+                            ]}>
+                            {t.roles[swatch.role].toUpperCase()} ·{' '}
+                            {Math.round(swatch.share * 100)}%
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </>
+                )}
+              </Field>
+            </View>
 
-        <View style={styles.section}>
-          <PressableScale
-            accessibilityRole="button"
-            onPress={save}
-            disabled={saving}
-            style={[styles.saveButton, { backgroundColor: theme.text, opacity: saving ? 0.6 : 1 }]}>
-            <Text style={[typography.label, { color: theme.background }]}>
-              {saving ? t.review.saving : t.review.save}
-            </Text>
-          </PressableScale>
-        </View>
+            <View style={styles.section}>
+              <Field label={t.review.name}>
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder={suggestName(t, category)}
+                  placeholderTextColor={theme.textMuted}
+                  returnKeyType="done"
+                  style={[
+                    typography.body,
+                    styles.input,
+                    { color: theme.text, borderColor: theme.line },
+                  ]}
+                />
+              </Field>
+            </View>
+
+            <View style={styles.section}>
+              <Field label={t.review.category}>
+                <View style={styles.categories}>
+                  {CATEGORIES.map((option) => {
+                    const active = option === category;
+                    return (
+                      <PressableScale
+                        key={option}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                        onPress={() => setCategory(option)}
+                        style={[
+                          styles.categoryChip,
+                          {
+                            backgroundColor: active ? theme.text : 'transparent',
+                            borderColor: active ? theme.text : theme.line,
+                          },
+                        ]}>
+                        <Text
+                          style={[
+                            typography.label,
+                            { color: active ? theme.background : theme.textMuted },
+                          ]}>
+                          {t.categories[option]}
+                        </Text>
+                      </PressableScale>
+                    );
+                  })}
+                </View>
+              </Field>
+            </View>
+
+            <View style={styles.section}>
+              <View style={[styles.switchRow, { borderColor: theme.line }]}>
+                <View style={styles.switchText}>
+                  <Text style={[typography.label, { color: theme.text }]}>
+                    {t.review.removeBackground}
+                  </Text>
+                  <Text style={[typography.body, { color: theme.textMuted }]}>
+                    {t.review.removeBackgroundBody}
+                  </Text>
+                </View>
+                <Switch value={removeBackground} onValueChange={setRemoveBackground} />
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <PressableScale
+                accessibilityRole="button"
+                onPress={save}
+                disabled={saving}
+                style={[
+                  styles.primaryButton,
+                  { backgroundColor: theme.text, opacity: saving ? 0.6 : 1 },
+                ]}>
+                <Text style={[typography.label, { color: theme.background }]}>
+                  {saving ? t.review.saving : t.review.save}
+                </Text>
+              </PressableScale>
+            </View>
+          </>
+        )}
+
+        {/* Riserva in coda lo spazio della tastiera, cosi' il campo su cui si
+            sta scrivendo resta sempre raggiungibile scorrendo. */}
+        <KeyboardPadding extra={spacing.lg} />
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+function StepDots({ active }: { active: number }) {
+  const theme = useTheme();
+  return (
+    <View style={styles.dots}>
+      {[0, 1].map((index) => (
+        <View
+          key={index}
+          style={[
+            styles.dot,
+            {
+              backgroundColor: index === active ? theme.text : theme.line,
+              width: index === active ? 20 : 6,
+            },
+          ]}
+        />
+      ))}
+    </View>
   );
 }
 
@@ -289,10 +372,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  preview: { paddingHorizontal: spacing.lg, gap: spacing.sm },
+  dots: { flexDirection: 'row', gap: spacing.sm, justifyContent: 'center' },
+  dot: { height: 6, borderRadius: radius.pill },
+  preview: { paddingHorizontal: spacing.lg, gap: spacing.md },
   hint: { textAlign: 'center' },
   section: { paddingHorizontal: spacing.lg },
-  loading: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md },
+  loading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+  },
   swatchList: { gap: spacing.sm, marginTop: spacing.sm },
   swatchRow: {
     borderRadius: radius.md,
@@ -320,7 +410,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   switchText: { flex: 1, gap: spacing.xs },
-  saveButton: {
+  primaryButton: {
     borderRadius: radius.pill,
     paddingVertical: spacing.md,
     alignItems: 'center',

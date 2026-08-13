@@ -143,58 +143,269 @@ export function detectSubjectBounds(buffer: PixelBuffer): NormalizedRect | null 
 }
 
 /**
- * Rende trasparente lo sfondo, con un riempimento che parte dai bordi.
+ * Sfondo previsto in ogni punto, interpolando fra i quattro angoli.
  *
- * Non cancella "tutti i pixel simili allo sfondo" ma solo quelli che il bordo
- * puo' raggiungere: e' la differenza fra perdere il muro e perdere anche la
- * camicia bianca appesa davanti.
+ * Un solo colore di sfondo per tutta la foto non regge la realta': un muro ha
+ * vignettatura, un tavolo ha il gradiente della luce che entra da una finestra.
+ * Stimare il colore in ciascun angolo e interpolare fra i quattro segue quelle
+ * variazioni lente, che sono esattamente quelle che una soglia fissa sbaglia.
+ */
+type BackgroundField = {
+  corners: [Oklab, Oklab, Oklab, Oklab]; // alto-sx, alto-dx, basso-sx, basso-dx
+  clusters: Oklab[];
+};
+
+function meanLab(labs: Oklab[], fallback: Oklab): Oklab {
+  if (labs.length === 0) return fallback;
+  const sum = labs.reduce(
+    (acc, lab) => ({ L: acc.L + lab.L, a: acc.a + lab.a, b: acc.b + lab.b }),
+    { L: 0, a: 0, b: 0 }
+  );
+  return { L: sum.L / labs.length, a: sum.a / labs.length, b: sum.b / labs.length };
+}
+
+function backgroundField(buffer: PixelBuffer, clusters: Oklab[]): BackgroundField {
+  const samples = collectSamples(buffer);
+  const marginX = buffer.width * 0.1;
+  const marginY = buffer.height * 0.1;
+
+  const onBorder = samples.filter(
+    (s) =>
+      s.x < marginX ||
+      s.x > buffer.width - marginX ||
+      s.y < marginY ||
+      s.y > buffer.height - marginY
+  );
+  // Un capo che sborda dal bordo non deve entrare nella stima dello sfondo.
+  const backgroundish = onBorder.filter((s) => isBackground(s.lab, clusters));
+  const overall = meanLab(
+    backgroundish.map((s) => s.lab),
+    clusters[0]
+  );
+
+  const quadrant = (left: boolean, top: boolean) =>
+    meanLab(
+      backgroundish
+        .filter(
+          (s) =>
+            (left ? s.x < buffer.width / 2 : s.x >= buffer.width / 2) &&
+            (top ? s.y < buffer.height / 2 : s.y >= buffer.height / 2)
+        )
+        .map((s) => s.lab),
+      overall
+    );
+
+  return {
+    corners: [quadrant(true, true), quadrant(false, true), quadrant(true, false), quadrant(false, false)],
+    clusters,
+  };
+}
+
+/** Distanza dal colore che ci si aspetta in quel punto, o dai colori del bordo. */
+function backgroundDistance(field: BackgroundField, lab: Oklab, u: number, v: number): number {
+  const [topLeft, topRight, bottomLeft, bottomRight] = field.corners;
+  const predicted = {
+    L:
+      (topLeft.L * (1 - u) + topRight.L * u) * (1 - v) +
+      (bottomLeft.L * (1 - u) + bottomRight.L * u) * v,
+    a:
+      (topLeft.a * (1 - u) + topRight.a * u) * (1 - v) +
+      (bottomLeft.a * (1 - u) + bottomRight.a * u) * v,
+    b:
+      (topLeft.b * (1 - u) + topRight.b * u) * (1 - v) +
+      (bottomLeft.b * (1 - u) + bottomRight.b * u) * v,
+  };
+
+  // Anche lontano dalla previsione locale, un colore identico a una delle tinte
+  // dominanti del bordo resta sfondo: copre gli sfondi a due tinte.
+  return field.clusters.reduce(
+    (best, cluster) => Math.min(best, deltaE(lab, cluster)),
+    deltaE(lab, predicted)
+  );
+}
+
+/** Sotto questa distanza il pixel e' sfondo con certezza. */
+const CERTAIN = 0.05;
+/** Sopra questa distanza e' capo con certezza; in mezzo, alfa parziale. */
+const UNCERTAIN = 0.14;
+
+const smoothstep = (t: number) => {
+  const x = Math.min(1, Math.max(0, t));
+  return x * x * (3 - 2 * x);
+};
+
+/** Tiene solo la macchia opaca piu' grande, buttando le isole sparse. */
+function keepLargestBlob(alpha: Uint8Array, width: number, height: number): void {
+  const label = new Int32Array(alpha.length).fill(-1);
+  const stack: number[] = [];
+  let best = -1;
+  let bestSize = 0;
+  let current = 0;
+
+  for (let seed = 0; seed < alpha.length; seed++) {
+    if (alpha[seed] < 128 || label[seed] >= 0) continue;
+
+    let size = 0;
+    stack.push(seed);
+    label[seed] = current;
+
+    while (stack.length > 0) {
+      const index = stack.pop()!;
+      size++;
+      const x = index % width;
+      const y = (index - x) / width;
+
+      const visit = (next: number) => {
+        if (alpha[next] >= 128 && label[next] < 0) {
+          label[next] = current;
+          stack.push(next);
+        }
+      };
+
+      if (x > 0) visit(index - 1);
+      if (x < width - 1) visit(index + 1);
+      if (y > 0) visit(index - width);
+      if (y < height - 1) visit(index + width);
+    }
+
+    if (size > bestSize) {
+      bestSize = size;
+      best = current;
+    }
+    current++;
+  }
+
+  if (best < 0) return;
+  for (let i = 0; i < alpha.length; i++) {
+    if (label[i] !== best) alpha[i] = 0;
+  }
+}
+
+/** Media 3x3 sull'alfa: toglie la scalettatura senza spostare il contorno. */
+function softenAlpha(alpha: Uint8Array, width: number, height: number): Uint8Array {
+  const output = new Uint8Array(alpha.length);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let sum = 0;
+      let count = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= height) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          if (nx < 0 || nx >= width) continue;
+          sum += alpha[ny * width + nx];
+          count++;
+        }
+      }
+      output[y * width + x] = Math.round(sum / count);
+    }
+  }
+
+  return output;
+}
+
+/**
+ * Rende trasparente lo sfondo.
  *
- * Se il capo tocca tutto il perimetro il riempimento si mangia l'immagine
- * intera: e' il segnale che il rilevamento non aveva appigli, e chi chiama lo
- * riconosce da `opaqueShare`.
+ * Quattro accorgimenti, ognuno contro un difetto preciso del taglio a soglia
+ * secca: lo sfondo e' previsto punto per punto invece che con un colore solo,
+ * cosi' ombre e vignettatura non diventano capo; fra le due soglie l'alfa e'
+ * parziale, cosi' il contorno sfuma invece di scalettare; sopravvive solo la
+ * macchia opaca piu' grande, cosi' un oggetto sul fondo non resta appeso
+ * accanto al capo; e l'alfa viene ammorbidita, cosi' il bordo non taglia.
+ *
+ * Resta comunque un metodo cromatico: distingue per colore, non per forma. Su
+ * fondi a fantasia o poco contrastati sbaglia, e il chiamante se ne accorge da
+ * `opaqueShare`.
  */
 export function cutOutBackground(buffer: PixelBuffer): PixelBuffer {
   const { width, height, data } = buffer;
   const output = new Uint8Array(data);
   if (width === 0 || height === 0) return { width, height, data: output };
 
-  const background = borderColors(buffer);
-  if (background.length === 0) return { width, height, data: output };
+  const clusters = borderColors(buffer);
+  if (clusters.length === 0) return { width, height, data: output };
 
-  const labAt = (index: number) =>
-    rgbToOklab({ r: data[index * 4], g: data[index * 4 + 1], b: data[index * 4 + 2] });
+  const field = backgroundField(buffer, clusters);
 
-  const visited = new Uint8Array(width * height);
-  // Pila esplicita invece che ricorsione: su un'immagine grande una funzione
-  // ricorsiva esaurirebbe lo stack.
-  const stack: number[] = [];
+  // La distanza serve due volte, e ricalcolarla costa piu' del tenerla.
+  const distance = new Float32Array(width * height);
+  for (let y = 0; y < height; y++) {
+    const v = height > 1 ? y / (height - 1) : 0;
+    for (let x = 0; x < width; x++) {
+      const index = y * width + x;
+      const i = index * 4;
+      distance[index] =
+        data[i + 3] < 128
+          ? 0
+          : backgroundDistance(
+              field,
+              rgbToOklab({ r: data[i], g: data[i + 1], b: data[i + 2] }),
+              width > 1 ? x / (width - 1) : 0,
+              v
+            );
+    }
+  }
 
-  const push = (index: number) => {
-    if (visited[index]) return;
-    visited[index] = 1;
-    if (isBackground(labAt(index), background)) stack.push(index);
+  // Riempimento in due ondate. La prima avanza solo sui pixel certi, la seconda
+  // sfuma nella fascia incerta: e' quest'ultima a dare il bordo morbido, e il
+  // fatto che parta dalla prima impedisce che una zona interna di colore simile
+  // allo sfondo venga bucata.
+  const state = new Uint8Array(width * height); // 0 = capo, 1 = sfondo, 2 = fascia
+  const flood = (limit: number, mark: number, seeds: number[]) => {
+    const stack = seeds;
+    while (stack.length > 0) {
+      const index = stack.pop()!;
+      const x = index % width;
+      const y = (index - x) / width;
+
+      const visit = (next: number) => {
+        if (state[next] !== 0 || distance[next] >= limit) return;
+        state[next] = mark;
+        stack.push(next);
+      };
+
+      if (x > 0) visit(index - 1);
+      if (x < width - 1) visit(index + 1);
+      if (y > 0) visit(index - width);
+      if (y < height - 1) visit(index + width);
+    }
   };
 
+  const border: number[] = [];
   for (let x = 0; x < width; x++) {
-    push(x);
-    push((height - 1) * width + x);
+    border.push(x, (height - 1) * width + x);
   }
   for (let y = 0; y < height; y++) {
-    push(y * width);
-    push(y * width + width - 1);
+    border.push(y * width, y * width + width - 1);
+  }
+  for (const index of border) {
+    if (state[index] === 0 && distance[index] < CERTAIN) state[index] = 1;
   }
 
-  while (stack.length > 0) {
-    const index = stack.pop()!;
-    output[index * 4 + 3] = 0;
+  flood(CERTAIN, 1, border.filter((index) => state[index] === 1));
+  flood(
+    UNCERTAIN,
+    2,
+    [...state.keys()].filter((index) => state[index] === 1)
+  );
 
-    const x = index % width;
-    const y = (index - x) / width;
+  const alpha = new Uint8Array(width * height);
+  for (let index = 0; index < alpha.length; index++) {
+    if (state[index] === 1) alpha[index] = 0;
+    else if (state[index] === 2) {
+      const t = (distance[index] - CERTAIN) / (UNCERTAIN - CERTAIN);
+      alpha[index] = Math.round(255 * smoothstep(t));
+    } else alpha[index] = 255;
+  }
 
-    if (x > 0) push(index - 1);
-    if (x < width - 1) push(index + 1);
-    if (y > 0) push(index - width);
-    if (y < height - 1) push(index + width);
+  keepLargestBlob(alpha, width, height);
+  const soft = softenAlpha(alpha, width, height);
+
+  for (let index = 0; index < soft.length; index++) {
+    output[index * 4 + 3] = Math.min(output[index * 4 + 3], soft[index]);
   }
 
   return { width, height, data: output };

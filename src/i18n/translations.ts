@@ -70,7 +70,11 @@ const it = {
   review: {
     title: 'Nuovo capo',
     noDraft: 'Nessuna foto da salvare.',
-    cropHint: 'Trascina e pizzica per inquadrare il capo',
+    stepFrame: 'Inquadra il capo',
+    stepDetails: 'Descrivi il capo',
+    detecting: 'Cerco il capo nella foto…',
+    cropHint: 'Trascina e pizzica per correggere l inquadratura',
+    continue: 'Continua',
     removeBackground: 'Togli lo sfondo',
     removeBackgroundBody:
       'Ritaglia il capo e lo appoggia sul fondo neutro della scheda. Riesce meglio su fondi uniformi.',
@@ -190,7 +194,11 @@ const en: Dictionary = {
   review: {
     title: 'New piece',
     noDraft: 'No photo to save.',
-    cropHint: 'Drag and pinch to frame the piece',
+    stepFrame: 'Frame the piece',
+    stepDetails: 'Describe the piece',
+    detecting: 'Looking for the piece in the photo…',
+    cropHint: 'Drag and pinch to adjust the framing',
+    continue: 'Continue',
     removeBackground: 'Remove the background',
     removeBackgroundBody:
       'Cuts the piece out and sets it on the card neutral. Works best on plain backgrounds.',
@@ -308,7 +316,11 @@ const es: Dictionary = {
   review: {
     title: 'Prenda nueva',
     noDraft: 'No hay ninguna foto que guardar.',
-    cropHint: 'Arrastra y pellizca para encuadrar la prenda',
+    stepFrame: 'Encuadra la prenda',
+    stepDetails: 'Describe la prenda',
+    detecting: 'Buscando la prenda en la foto…',
+    cropHint: 'Arrastra y pellizca para ajustar el encuadre',
+    continue: 'Continuar',
     removeBackground: 'Quitar el fondo',
     removeBackgroundBody:
       'Recorta la prenda y la apoya sobre el neutro de la tarjeta. Funciona mejor con fondos lisos.',

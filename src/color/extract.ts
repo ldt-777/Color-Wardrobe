@@ -57,10 +57,12 @@ function garmentsDirectory(): Directory {
 }
 
 /** Applica il ritaglio, se c'e', e restituisce l'immagine pronta in memoria. */
-async function render(sourceUri: string, crop?: NormalizedRect): Promise<ImageRef> {
-  const context = ImageManipulator.manipulate(sourceUri);
+async function withCrop(
+  context: ReturnType<typeof ImageManipulator.manipulate>,
+  crop?: NormalizedRect
+): Promise<ImageRef> {
   const original = await context.renderAsync();
-  if (!crop) return original;
+  if (!crop || isFullFrame(crop)) return original;
 
   // Il rettangolo arriva normalizzato perche' e' stato scelto guardando
   // l'anteprima: qui torna in pixel sulla risoluzione vera.
@@ -75,11 +77,21 @@ async function render(sourceUri: string, crop?: NormalizedRect): Promise<ImageRe
   return context.crop(rect).renderAsync();
 }
 
+/** Un ritaglio che copre tutto non vale la pena di essere applicato. */
+const isFullFrame = (crop: NormalizedRect) =>
+  crop.x <= 0.001 && crop.y <= 0.001 && crop.width >= 0.999 && crop.height >= 0.999;
+
 /** Ridimensiona senza mai ingrandire: allargare una foto non aggiunge colore. */
-async function saveAt(sourceUri: string, width: number, format: SaveFormat, compress: number) {
+async function saveAt(
+  sourceUri: string,
+  width: number,
+  format: SaveFormat,
+  compress: number,
+  crop?: NormalizedRect
+) {
   const context = ImageManipulator.manipulate(sourceUri);
-  const original = await context.renderAsync();
-  if (original.width <= width) return original.saveAsync({ format, compress });
+  const rendered = await withCrop(context, crop);
+  if (rendered.width <= width) return rendered.saveAsync({ format, compress });
 
   const resized = await context.resize({ width }).renderAsync();
   return resized.saveAsync({ format, compress });
@@ -94,8 +106,8 @@ function moveInto(sourceUri: string, destination: File): string {
 }
 
 /** Legge i pixel di un'immagine passando da un PNG temporaneo. */
-async function pixelsAt(sourceUri: string, width: number) {
-  const png = await saveAt(sourceUri, width, SaveFormat.PNG, 1);
+async function pixelsAt(sourceUri: string, width: number, crop?: NormalizedRect) {
+  const png = await saveAt(sourceUri, width, SaveFormat.PNG, 1, crop);
   try {
     return await readPngPixels(png.uri);
   } finally {
@@ -104,9 +116,15 @@ async function pixelsAt(sourceUri: string, width: number) {
   }
 }
 
-/** Estrae la palette da una foto, senza salvare nulla di permanente. */
-export async function extractSwatches(sourceUri: string): Promise<Swatch[]> {
-  return quantizeImage(await pixelsAt(sourceUri, ANALYSIS_WIDTH));
+/**
+ * Estrae la palette da una foto, senza salvare nulla di permanente.
+ * Con un ritaglio, legge i colori del solo capo inquadrato.
+ */
+export async function extractSwatches(
+  sourceUri: string,
+  crop?: NormalizedRect
+): Promise<Swatch[]> {
+  return quantizeImage(await pixelsAt(sourceUri, ANALYSIS_WIDTH, crop));
 }
 
 /**
@@ -141,10 +159,8 @@ export async function prepareGarmentImage(
 ): Promise<PreparedGarmentImage> {
   const directory = garmentsDirectory();
 
-  const cropped = await render(sourceUri, options.crop);
-  const full = await cropped.saveAsync({ format: SaveFormat.JPEG, compress: 1 });
-  const source = await saveAt(full.uri, STORED_WIDTH, SaveFormat.JPEG, 0.86);
-  const imageUri = moveInto(source.uri, new File(directory, `${garmentId}.jpg`));
+  const stored = await saveAt(sourceUri, STORED_WIDTH, SaveFormat.JPEG, 0.86, options.crop);
+  const imageUri = moveInto(stored.uri, new File(directory, `${garmentId}.jpg`));
 
   const thumb = await saveAt(imageUri, THUMB_WIDTH, SaveFormat.JPEG, 0.7);
   const thumbUri = moveInto(thumb.uri, new File(directory, `${garmentId}-thumb.jpg`));

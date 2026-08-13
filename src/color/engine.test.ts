@@ -374,3 +374,54 @@ describe('scontorno', () => {
     assert.ok(opaqueShare(cutOutBackground(solid)) < 0.05);
   });
 });
+
+describe('scontorno su sfondi difficili', () => {
+  it('regge uno sfondo in gradiente', () => {
+    // Muro che va dal chiaro allo scuro: una soglia unica ne perderebbe meta',
+    // scambiando il lato scuro per capo.
+    const cut = cutOutBackground(
+      image(140, 140, (x, y) => {
+        if (x >= 45 && x < 95 && y >= 45 && y < 95) return [180, 60, 50];
+        const shade = 250 - Math.round((x + y) * 0.45);
+        return [shade, shade - 2, shade - 5];
+      })
+    );
+
+    const alphaAt = (x: number, y: number) => cut.data[(y * cut.width + x) * 4 + 3];
+    assert.equal(alphaAt(4, 4), 0, 'angolo chiaro rimasto');
+    assert.equal(alphaAt(135, 135), 0, 'angolo scuro scambiato per capo');
+    assert.equal(alphaAt(70, 70), 255, 'capo cancellato');
+  });
+
+  it('scarta gli oggetti sullo sfondo staccati dal capo', () => {
+    // Una macchia scura in un angolo non e' il capo: deve sparire con lo
+    // sfondo, non restare appesa accanto.
+    const cut = cutOutBackground(
+      image(140, 140, (x, y) => {
+        if (x >= 45 && x < 100 && y >= 40 && y < 105) return [40, 70, 150];
+        if (x >= 8 && x < 24 && y >= 8 && y < 24) return [60, 55, 50];
+        return [245, 244, 241];
+      })
+    );
+
+    const alphaAt = (x: number, y: number) => cut.data[(y * cut.width + x) * 4 + 3];
+    assert.equal(alphaAt(16, 16), 0, 'la macchia sullo sfondo e sopravvissuta');
+    assert.equal(alphaAt(70, 70), 255, 'capo cancellato');
+  });
+
+  it('sfuma il contorno invece di scalettarlo', () => {
+    const cut = cutOutBackground(
+      image(120, 120, (x, y) =>
+        x >= 35 && x < 85 && y >= 35 && y < 85 ? [30, 120, 70] : [246, 245, 242]
+      )
+    );
+
+    // Con un taglio a soglia secca ogni pixel sarebbe 0 o 255; la fascia di
+    // valori intermedi e' quello che rende il bordo morbido sulla scheda.
+    let partial = 0;
+    for (let i = 3; i < cut.data.length; i += 4) {
+      if (cut.data[i] > 8 && cut.data[i] < 247) partial++;
+    }
+    assert.ok(partial > 40, `solo ${partial} pixel di transizione`);
+  });
+});
