@@ -1,7 +1,7 @@
 # Color Wardrobe — note per chi ci lavora
 
-Expo SDK 54 / React Native 0.81 / expo-router. Prima di scrivere codice Expo,
-i documenti giusti sono quelli versionati: https://docs.expo.dev/versions/v54.0.0/
+Expo SDK 57 / React Native 0.86 / expo-router. Prima di scrivere codice Expo,
+i documenti giusti sono quelli versionati: https://docs.expo.dev/versions/v57.0.0/
 
 ## Convenzioni
 
