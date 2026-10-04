@@ -23,7 +23,11 @@ const light: Theme = {
   surfaceMuted: '#F1EFEB',
   line: '#E7E3DC',
   text: '#141317',
-  textMuted: '#7C7871',
+  // Misurato contro tutti i fondi su cui il testo tenue poggia davvero: la
+  // shell, le superfici e i sei fondi di mood. Il grigio precedente (#7C7871)
+  // scendeva a 3,25:1 sul fondo di "Notte", sotto il 4,5:1 che serve a un
+  // testo piccolo; questo tiene 4,9:1 nel caso peggiore.
+  textMuted: '#605C55',
   overlay: 'rgba(20, 19, 23, 0.55)',
 };
 
@@ -34,7 +38,9 @@ const dark: Theme = {
   surfaceMuted: '#1E1E22',
   line: '#27272C',
   text: '#F3F1ED',
-  textMuted: '#8A867F',
+  // Come sopra: #8A867F scendeva a 4,14:1 sul fondo scuro di "Terra", che e'
+  // il piu' chiaro dei sei. Questo tiene 5,1:1.
+  textMuted: '#9C978C',
   overlay: 'rgba(0, 0, 0, 0.6)',
 };
 
