@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   image: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     marginBottom: 46,
   },
   photo: {

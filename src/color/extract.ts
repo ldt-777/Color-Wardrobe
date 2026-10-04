@@ -97,11 +97,15 @@ async function saveAt(
   return resized.saveAsync({ format, compress });
 }
 
-/** `move` e' sincrono e non accetta un flag di sovrascrittura: la destinazione
- *  va liberata prima, altrimenti solleva. */
+/**
+ * Sposta un file appena prodotto nella sua destinazione definitiva.
+ *
+ * Usiamo la variante sincrona: `move` restituisce una promessa, e chiamarla
+ * senza attenderla significherebbe restituire l'URI prima che il file ci sia
+ * davvero. Sincrona, il ritorno e' un fatto compiuto.
+ */
 function moveInto(sourceUri: string, destination: File): string {
-  if (destination.exists) destination.delete();
-  new File(sourceUri).move(destination);
+  new File(sourceUri).moveSync(destination, { overwrite: true });
   return destination.uri;
 }
 

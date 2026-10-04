@@ -7,6 +7,9 @@
     "lib": ["ES2022"],
     "module": "CommonJS",
     "moduleResolution": "node10",
+    // Da TypeScript 6 `node10` e' deprecato ma resta l'unica risoluzione che
+    // accetta le import senza estensione dei sorgenti, che Metro pretende.
+    "ignoreDeprecations": "6.0",
     "types": ["node"],
     "strict": true,
     "esModuleInterop": true,

@@ -194,10 +194,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#00000010',
   },
   layer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  guides: { ...StyleSheet.absoluteFillObject },
+  guides: { ...StyleSheet.absoluteFill },
   line: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.28)' },
 });

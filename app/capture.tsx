@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
   hint: { color: 'rgba(255, 255, 255, 0.75)', textAlign: 'center' },
   error: { color: '#FFC9C0', textAlign: 'center' },
   busy: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.md,
